@@ -730,4 +730,144 @@ function openForecastModal(assignee) { currentForecastAssignee = assignee; delet
 function closeForecastModal() { $('forecast-overlay').classList.add('hidden'); }
 function renderForecastRows() {
   const tbody = $('forecast-table-body'); if (currentForecasts.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:#9ca3af">見込み案件はありません</td></tr>'; return; }
-  tbody.innerHTML = currentForecasts.map((f, idx) => `<tr><td><input type="text" class="modal-input" value="${f.company}" oninput="currentForecasts[${idx}].company=this.value" placeholder="企業名"></td><td><select class="modal-sel" onchange="currentForecasts[${idx}].assignee=this.value"><option ${f.assignee==='川畑'?'selected':''}>川畑</option><option ${f.assignee==='松木'?'selected':''}>松木</option><option ${f.assignee==='林'?'selected':''}>林</option><option ${f.assignee==
+  tbody.innerHTML = currentForecasts.map((f, idx) => `<tr><td><input type="text" class="modal-input" value="${f.company}" oninput="currentForecasts[${idx}].company=this.value" placeholder="企業名"></td><td><select class="modal-sel" onchange="currentForecasts[${idx}].assignee=this.value"><option ${f.assignee==='川畑'?'selected':''}>川畑</option><option ${f.assignee==='松木'?'selected':''}>松木</option><option ${f.assignee==='林'?'selected':''}>林</option><option ${f.assignee==='なし'?'selected':''}>なし</option></select></td><td><input type="number" class="modal-input" value="${f.revenue||''}" oninput="currentForecasts[${idx}].revenue=parseNum(this.value); refreshForecastSubtotal(${idx});"></td><td><input type="number" class="modal-input" value="${f.quantity||1}" oninput="currentForecasts[${idx}].quantity=parseNum(this.value); refreshForecastSubtotal(${idx});"></td><td id="f-subtotal-${idx}" style="text-align:right; font-weight:700; color:#1e3a8a;">${(f.revenue*f.quantity).toLocaleString()}円</td><td><input type="text" class="modal-input" value="${f.note||''}" oninput="currentForecasts[${idx}].note=this.value" placeholder="備考"></td><td style="text-align:center;"><button class="btn btn-ghost btn-sm" style="color:#dc2626;" onclick="deleteForecastRow(${idx})">削除</button></td></tr>`).join('');
+}
+function refreshForecastSubtotal(idx) { const f = currentForecasts[idx]; if($(`f-subtotal-${idx}`)) $(`f-subtotal-${idx}`).textContent = (f.revenue * f.quantity).toLocaleString() + '円'; }
+function addForecastRow() { currentForecasts.push({ rowIndex: null, company: '', assignee: currentForecastAssignee, revenue: 0, quantity: 1, note: '' }); renderForecastRows(); }
+function deleteForecastRow(idx) { currentForecasts.splice(idx, 1); renderForecastRows(); }
+
+async function saveForecasts() {
+  if (!cfg.asUrl) { notify('Apps Script URLを設定してください', 'warn'); return; }
+  const validItems = currentForecasts.filter(f => f.company.trim() !== '');
+  try {
+    notify('変更内容をスプレッドシートに一括保存中... 🔄', 'warn');
+    const payload = validItems.map(f => [ f.company.trim(), f.assignee, f.revenue, f.quantity, f.revenue * f.quantity, f.note.trim() ]);
+    const url = `${cfg.asUrl}?action=saveForecasts&sheet=${encodeURIComponent(SHEETS.forecasts)}&assignee=${encodeURIComponent(currentForecastAssignee)}&values=${encodeURIComponent(JSON.stringify(payload))}`;
+    const res = await (await fetch(url, { redirect: 'follow' })).json();
+    if (res.status === 'error') throw new Error(res.message);
+    notify('売上見込みをすべて保存しました ✓', 'ok'); closeForecastModal(); await reloadData();
+  } catch (e) { notify('保存エラー: ' + e.message, 'err'); }
+}
+
+function openSettings(){ $('sett-ssid').value=cfg.ssid; $('sett-overlay').classList.remove('hidden'); }
+function closeSettings(){ $('sett-overlay').classList.add('hidden'); }
+function saveSettings(){ cfg.ssid=$('sett-ssid').value.trim(); localStorage.setItem('ssid',cfg.ssid); closeSettings(); reloadData(); }
+
+document.querySelectorAll('.nav-btn').forEach(btn=>{ btn.addEventListener('click',()=>{ UI.tab=btn.dataset.tab; document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+UI.tab)); if(UI.tab==='analysis') renderAnalysis(); }); });
+let _nt; function notify(msg,type='ok'){ const el=$('notif'); el.textContent=msg; el.className=`notif ${type} show`; clearTimeout(_nt); _nt=setTimeout(()=>el.classList.remove('show'),3500); }
+async function reloadData(){ ['monthly','funnel','source','marketing','analysis'].forEach(destroyChart); await loadAllData(); }
+
+function renderAnalysis() {
+  destroyChart('analysis');
+  // 💡【変更】選択された「年」を取得するロジックに変更
+  const selYear = parseInt($('analysis-year').value);
+  const sm = parseInt($('analysis-start-month').value);
+  const em = parseInt($('analysis-end-month').value);
+  
+  // 💡【変更】指定された年（selYear）に一致するデータのみを抽出
+  const targetRevenues = DB.revenues.filter(r => 
+    r.cat === '法人研修' && 
+    r.month && 
+    r.month.getFullYear() === selYear && 
+    r.month.getMonth() >= sm && 
+    r.month.getMonth() <= em
+  );
+  
+  const companyMap = {};
+  let totalAmount = 0;
+  
+  targetRevenues.forEach(r => {
+    let cName = r.name ? r.name.trim() : '';
+    
+    // 💡【変更】全角カッコ（）および半角カッコ() 内の企業名だけを取り出すロジックを実装
+    const match = cName.match(/[（(](.*?)[）)]/);
+    if (match && match[1]) {
+      cName = match[1].trim();
+    } else {
+      cName = cName || '不明な企業';
+    }
+    
+    companyMap[cName] = (companyMap[cName] || 0) + r.amount;
+    totalAmount += r.amount;
+  });
+  
+  const sortedCompanies = Object.keys(companyMap).map(name => {
+    const amount = companyMap[name];
+    const ratio = totalAmount > 0 ? (amount / totalAmount * 100).toFixed(1) : '0.0';
+    return { name, amount, ratio };
+  }).sort((a, b) => b.amount - a.amount);
+  
+  const tbody = $('analysis-table-body');
+  if (sortedCompanies.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px;color:#9ca3af">指定期間内に法人研修の売上データがありません</td></tr>';
+  } else {
+    tbody.innerHTML = sortedCompanies.map(c => `
+      <tr>
+        <td><strong>${c.name}</strong></td>
+        <td style="text-align:right;">${c.amount.toLocaleString()}円</td>
+        <td style="text-align:right; font-weight:700; color:#1e3a8a;">${c.ratio}%</td>
+      </tr>
+    `).join('');
+  }
+  
+  if (sortedCompanies.length > 0) {
+    const chartLabels = sortedCompanies.map(c => `${c.name} (${c.ratio}%)`);
+    const chartData = sortedCompanies.map(c => c.amount);
+    
+    const palette = [
+      '#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777',
+      '#0284c7', '#ea580c', '#16a34a', '#4f46e5', '#9333ea',
+      '#ed64a6', '#475569', '#cbd5e1'
+    ];
+    const bgColors = chartLabels.map((_, i) => palette[i % palette.length]);
+    
+    UI.charts.analysis = new Chart($('chart-analysis'), {
+      type: 'doughnut',
+      data: {
+        labels: chartLabels,
+        datasets: [{
+          data: chartData,
+          backgroundColor: bgColors
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { font: { size: 11 }, padding: 10 }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const val = context.raw || 0;
+                return ` 売上額: ${val.toLocaleString()}円`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+}
+
+// ツールチップ
+const pbTooltip = document.createElement('div'); pbTooltip.className = 'custom-pb-tooltip'; document.body.appendChild(pbTooltip);
+function posTooltip(e) { let x = e.clientX + 15, y = e.clientY + 15; if (x + pbTooltip.offsetWidth > window.innerWidth) x = e.clientX - pbTooltip.offsetWidth - 15; if (y + pbTooltip.offsetHeight > window.innerHeight) y = e.clientY - pbTooltip.offsetHeight - 15; pbTooltip.style.left = x + 'px'; pbTooltip.style.top = y + 'px'; }
+document.addEventListener('mouseover', e => {
+  const row = e.target.closest('.pb-row'); if (!row) return; const ass = row.getAttribute('data-assignee'); if (!ass) return;
+  const list = DB.forecasts.filter(f => f.assignee === ass && f.company.trim() !== '');
+  if (list.length > 0) {
+    let html = `<div style="font-weight:700; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:4px; color:#38bdf8;">【${ass} の売上見込み内訳】</div>`;
+    list.forEach((f, i) => { html += `<div style="margin-bottom: 6px;"><div style="font-weight:700;">${i + 1}. ${f.company}</div><div style="color:#cbd5e1; padding-left:10px;">➔ ${f.revenue.toLocaleString()}円 × ${f.quantity} ＝ <span style="color:#4ade80; font-weight:700;">${(f.revenue*f.quantity).toLocaleString()}円</span></div>${f.note?`<div style="color:#94a3b8; padding-left:10px; font-style:italic; font-size:10px;">※ ${f.note}</div>`:''}</div>`; });
+    pbTooltip.innerHTML = html; posTooltip(e); pbTooltip.classList.add('show');
+  } else { pbTooltip.innerHTML = `<div style="color:#94a3b8;">登録された売上見込みはありません。</div>`; posTooltip(e); pbTooltip.classList.add('show'); }
+});
+document.addEventListener('mousemove', e => { if (pbTooltip.classList.contains('show')) posTooltip(e); });
+document.addEventListener('mouseout', e => { if (e.target.closest('.pb-row')) pbTooltip.classList.remove('show'); });
+
+loadAllData();
+</script>
+</body>
+</html>
