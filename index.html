@@ -790,9 +790,10 @@ function renderAnalysis() {
     totalAmount += r.amount;
   });
   
+// 配列に直して売上高順（降順）でソート
   const sortedCompanies = Object.keys(companyMap).map(name => {
-    const amount = companyMap[name];
-    const ratio = totalAmount > 0 ? (amount / totalAmount * 100).toFixed(1) : '0.0';
+    const amount = Math.round(companyMap[name]); // 💡 小数点以下を四捨五入して整数にする
+    const ratio = totalAmount > 0 ? (companyMap[name] / totalAmount * 100).toFixed(1) : '0.0';
     return { name, amount, ratio };
   }).sort((a, b) => b.amount - a.amount);
   
