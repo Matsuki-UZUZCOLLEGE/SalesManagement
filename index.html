@@ -372,10 +372,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
     <div class="sett-field">
       <label class="sett-lbl">スプレッドシート ID</label><input class="sett-inp" id="sett-ssid">
     </div>
-    <div class="sett-field">
-      <label class="sett-lbl">Apps Script URL</label><input class="sett-inp" id="sett-asurl">
     </div>
-  </div>
   <div class="modal-footer">
     <button class="btn btn-ghost" onclick="closeSettings()">キャンセル</button>
     <button class="btn btn-primary" onclick="saveSettings()">保存して再読み込み</button>
@@ -388,16 +385,18 @@ tr:hover td{background:#fafbff;cursor:pointer}
 <script>
 'use strict';
 const YEAR = 2026, DEFAULT_ID = '1tEopf-vEr0UrpcC_nlBQfZ9uLPW8R0mk';
-const cfg = { ssid: localStorage.getItem('ssid') || DEFAULT_ID, asUrl: localStorage.getItem('asUrl') || '' };
-const GAS_URL = '__GAS_URL__';
-if (GAS_URL && !GAS_URL.startsWith('__')) cfg.asUrl = GAS_URL;
+
+// 💡【重要：ここにあなたのGASウェブアプリURLを直接貼り付けてください】
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyY4o5cOIGIsuQvcV4C5bzFI06i_6n_O9YCwfhmS1GzJEL9h1M5ZnfUAcOAK2ESy-s/exec';
+
+// 💡 外部から読み込むのではなく、変数 GAS_URL の値を使うように固定化
+const cfg = { ssid: localStorage.getItem('ssid') || DEFAULT_ID, asUrl: GAS_URL };
 
 const SHEETS = { deals: '【営業】商談管理', target: '【共通】目標管理(2026)', revenue: '【参照】売上管理(2026)', actions: '【営業】要因アクション', marketing: '【マーケ】CV/商談', history: '【履歴】サマリー', forecasts: '見込み管理' };
 const STATUSES = ['商談前','商談済','提案済','クロージング','完了'];
 const ST_CFG = { '商談前':{bg:'#6b7280',text:'#374151'}, '商談済':{bg:'#2563eb',text:'#1d4ed8'}, '提案済':{bg:'#d97706',text:'#92400e'}, 'クロージング':{bg:'#dc2626',text:'#991b1b'}, '完了':{bg:'#059669',text:'#065f46'} };
 const TYPE_COLORS = { 'AI':'#8b5cf6','インフラ':'#0ea5e9','開発':'#f59e0b','組込み':'#10b981','その他':'#94a3b8','法人研修':'#2563eb' };
 
-// 💡「なし」の配色・テーマを設定
 const PERSON_BAR_COLOR = {川畑:'#0ea5e9', 松木:'#eab308', 林:'#22c55e', なし:'#94a3b8'}, 
       PERSON_CARD_BG = {川畑:'#e0f2fe', 松木:'#fefce8', 林:'#dcfce7', なし:'#f1f5f9'}, 
       PERSON_CARD_ACC = {川畑:'#0ea5e9', 松木:'#ca8a04', 林:'#16a34a', なし:'#64748b'}, 
@@ -491,7 +490,6 @@ function getPastSnapshot() { if (!DB.history || DB.history.length === 0) return 
 function getDiffStr(cur, past, isMonetary = false) { if (!past) return ''; const diff = cur - past; if (diff === 0) return ' <span style="color:#94a3b8; font-size:12px; margin-left:6px;">(±0)</span>'; return ` <span style="color:${diff > 0 ? '#059669':'#dc2626'}; font-size:12px; font-weight:700; margin-left:6px;">(${diff > 0 ? '+':''}${isMonetary ? Math.round(diff).toLocaleString() : diff})</span>`; }
 
 function renderDashboard() {
-  // 💡 集計対象の配列を「なし」に修正
   ['川畑', '松木', '林', 'なし'].forEach(n => { if (DB.targets[n]) { DB.targets[n].mVal = DB.forecasts.filter(f => f.assignee === n).reduce((s, f) => s + (f.revenue * f.quantity), 0); if (DB.targets[n].targetTotal > 0) DB.targets[n].achvTotal = DB.targets[n].actualTotal / DB.targets[n].targetTotal; } });
   if (DB.targets['合計']) { 
     DB.targets['合計'].mVal = ['川畑', '松木', '林', 'なし'].reduce((s, n) => s + (DB.targets[n]?.mVal || 0), 0); 
@@ -510,7 +508,6 @@ function renderDashboard() {
   const pbHead = $('person-bars')?.closest('.card')?.querySelector('.card-head');
   if (pbHead) pbHead.innerHTML = '<span>担当者別 目標達成率（2026年）</span><span style="font-weight:normal; font-size:11px; color:#6b7280;">※クリックで見込み編集</span>';
 
-  // 💡 目標達成率バーの描画ループを「なし」に修正
   $('person-bars').innerHTML = ['川畑','松木','林', 'なし'].map(name => {
     const t = DB.targets[name] || {}, tgtVal = t.targetTotal || 1, actVal = t.actualTotal || 0, estVal = t.mVal || 0, col = PERSON_BAR_COLOR[name] || '#1e3a8a';
     
@@ -622,7 +619,7 @@ function openDealModal(deal){
   const act=DB.actions.find(a=>a.company&&(deal.company.includes(a.company.split(' ')[0])||a.company.includes(deal.company.split('（')[0])));
   if(act){ $('body-act').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"><div><div class="detail-lbl">阻害要因</div><div>${act.barrier||'—'}</div></div><div><div class="detail-lbl">アクション</div><div>${act.action||'—'}</div></div></div>`; $('m-action-section').style.display='block'; }
   else { $('m-action-section').style.display='none'; }
-  ['nt','ux','act'].forEach(k=>{ $('btn-'+k)?.classList.remove('open'); $('body-'+k)?.classList.remove('open'); if($('chv-'+k)) $('chv-'+k).style.transform = ''; });
+  ['nt','ux','act'].forEach(k=>{ $('btn-'+k)?.classList.remove('open'); $('body-'+k)?.classList.remove('open'); if($('chv-'+k)) $('chv-'+k).style.transform = $('btn-'+k).classList.contains('open') ? 'rotate(180deg)' : ''; });
   $('deal-overlay').classList.remove('hidden');
 }
 
@@ -661,7 +658,6 @@ function openForecastModal(assignee) { currentForecastAssignee = assignee; delet
 function closeForecastModal() { $('forecast-overlay').classList.add('hidden'); }
 function renderForecastRows() {
   const tbody = $('forecast-table-body'); if (currentForecasts.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:#9ca3af">見込み案件はありません</td></tr>'; return; }
-  // 💡 見込み内訳モーダルのドロップダウン選択肢を「なし」に修正
   tbody.innerHTML = currentForecasts.map((f, idx) => `<tr><td><input type="text" class="modal-input" value="${f.company}" oninput="currentForecasts[${idx}].company=this.value" placeholder="企業名"></td><td><select class="modal-sel" onchange="currentForecasts[${idx}].assignee=this.value"><option ${f.assignee==='川畑'?'selected':''}>川畑</option><option ${f.assignee==='松木'?'selected':''}>松木</option><option ${f.assignee==='林'?'selected':''}>林</option><option ${f.assignee==='なし'?'selected':''}>なし</option></select></td><td><input type="number" class="modal-input" value="${f.revenue||''}" oninput="currentForecasts[${idx}].revenue=parseNum(this.value); refreshForecastSubtotal(${idx});"></td><td><input type="number" class="modal-input" value="${f.quantity||1}" oninput="currentForecasts[${idx}].quantity=parseNum(this.value); refreshForecastSubtotal(${idx});"></td><td id="f-subtotal-${idx}" style="text-align:right; font-weight:700; color:#1e3a8a;">${(f.revenue*f.quantity).toLocaleString()}円</td><td><input type="text" class="modal-input" value="${f.note||''}" oninput="currentForecasts[${idx}].note=this.value" placeholder="備考"></td><td style="text-align:center;"><button class="btn btn-ghost btn-sm" style="color:#dc2626;" onclick="deleteForecastRow(${idx})">削除</button></td></tr>`).join('');
 }
 function refreshForecastSubtotal(idx) { const f = currentForecasts[idx]; if($(`f-subtotal-${idx}`)) $(`f-subtotal-${idx}`).textContent = (f.revenue * f.quantity).toLocaleString() + '円'; }
@@ -681,9 +677,11 @@ async function saveForecasts() {
   } catch (e) { notify('保存エラー: ' + e.message, 'err'); }
 }
 
-function openSettings(){ $('sett-ssid').value=cfg.ssid; $('sett-asurl').value=cfg.asUrl; $('sett-overlay').classList.remove('hidden'); }
+function openSettings(){ $('sett-ssid').value=cfg.ssid; $('sett-overlay').classList.remove('hidden'); }
 function closeSettings(){ $('sett-overlay').classList.add('hidden'); }
-function saveSettings(){ cfg.ssid=$('sett-ssid').value.trim(); cfg.asUrl=$('sett-asurl').value.trim(); localStorage.setItem('ssid',cfg.ssid); localStorage.setItem('asUrl',cfg.asUrl); closeSettings(); reloadData(); }
+
+// 💡 saveSettings から asUrl の保存処理を排除
+function saveSettings(){ cfg.ssid=$('sett-ssid').value.trim(); localStorage.setItem('ssid',cfg.ssid); closeSettings(); reloadData(); }
 
 document.querySelectorAll('.nav-btn').forEach(btn=>{ btn.addEventListener('click',()=>{ UI.tab=btn.dataset.tab; document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+UI.tab)); }); });
 let _nt; function notify(msg,type='ok'){ const el=$('notif'); el.textContent=msg; el.className=`notif ${type} show`; clearTimeout(_nt); _nt=setTimeout(()=>el.classList.remove('show'),3500); }
