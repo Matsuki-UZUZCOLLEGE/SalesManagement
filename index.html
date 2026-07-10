@@ -30,7 +30,7 @@ main{flex:1;padding:20px;max-width:1600px;width:100%;margin:0 auto}
 .kpi{background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-left:4px solid #1e3a8a;position:relative;overflow:hidden}
 .kpi::after{content:'';position:absolute;right:-10px;top:-10px;width:60px;height:60px;border-radius:50%;background:rgba(30,58,138,.05)}
 .kpi-label{font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.6px}
-.kpi-val{font-size:26px;font-weight[800];color:#1e293b;margin:4px 0 2px}
+.kpi-val{font-size:26px;font-weight:800;color:#1e293b;margin:4px 0 2px}
 .kpi-sub{font-size:11px;color:#9ca3af}
 .kpi.green{border-color:#059669} .kpi.amber{border-color:#d97706} .kpi.purple{border-color:#7c3aed}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -493,8 +493,7 @@ function safeStr(v) { return (v===null||v===undefined) ? '' : String(v).replace(
 function processTargets(rows) {
   const res={}; rows.slice(2).forEach((r,i)=>{ const name=r[0]; if(!name)return; res[String(name)]={name:String(name),rowIndex:i+3,targetMax:parseNum(r[1]),targetTotal:parseNum(r[2]),targetH1:parseNum(r[3]),targetH2:parseNum(r[4]),withForecast:parseNum(r[5]),actualTotal:parseNum(r[6]),actualH1:parseNum(r[7]),actualH2:parseNum(r[8]),achvTotal:parseNum(r[9]),achvH1:parseNum(r[10]),achvH2:parseNum(r[11]),mVal:parseNum(r[12]), mList:safeStr(r[13])}; }); return res;
 }
-function processRevenues(rows) { return rows.slice(1).map(r=>{ const m=parseDate(r[0]); return m ? {month:m, cat:r[1]||'その他', name:r[2]||'', amount:parseNum(r[5]), rep:r[17]||''} : null; }).filter(Boolean); }
-function processActions(rows) { return rows.slice(1).map(r=>({ assignee:r[1]||'', company:String(r[2]||'').trim(), plan:r[3]||'', revenue:parseNum(r[4]), prob:parseNum(r[5]), barrier:safeStr(r[6]), action:safeStr(r[7]) })).filter(d=>d.company); }
+function processRevenues(rows) { return rows.slice(1).map(r=>{ const m=parseDate(r[0]); return m ? {month:m, cat:r[1]||'その他', name:r[2]||'', amount:parseNum(r[5]), rep:r[17]||''} : null; }).filter(Boolean); }function processRevenues(rows, amountColIndex = 5) { return rows.slice(1).map(r=>{ const m=parseDate(r[0]); return m ? {month:m, cat:r[1]||'その他', name:r[2]||'', amount:parseNum(r[amountColIndex]), rep:r[17]||''} : null; }).filter(Boolean); }function processActions(rows) { return rows.slice(1).map(r=>({ assignee:r[1]||'', company:String(r[2]||'').trim(), plan:r[3]||'', revenue:parseNum(r[4]), prob:parseNum(r[5]), barrier:safeStr(r[6]), action:safeStr(r[7]) })).filter(d=>d.company); }
 function processMarketing(rows) {
   const res = { cv: { 'AI': Array(12).fill(0), 'インフラ': Array(12).fill(0), '開発': Array(12).fill(0), '組込み': Array(12).fill(0) }, deal: { 'AI': Array(12).fill(2), 'インフラ': Array(12).fill(1), '開発': Array(12).fill(3), '組込み': Array(12).fill(0) } };
   if (!rows) return res; let isDeal = false; const cats = ['AI', 'インフラ', '開発', '組込み'];
@@ -528,9 +527,9 @@ async function loadAllData() {
     if(!get(0)){ notify('デモデータを表示しています。','warn'); return; }
     DB.deals = processDeals(get(0)); DB.actions = get(1) ? processActions(get(1)) : DB.actions; DB.targets = get(2) ? processTargets(get(2)) : DB.targets; 
     
-    // 💡【変更】2025年分と2026年分の売上データをマージして保持
-    const rev2026 = get(3) ? processRevenues(get(3)) : [];
-    const rev2025 = res[7] && res[7].status === 'fulfilled' ? processRevenues(res[7].value) : [];
+// 💡【変更】2025年分と2026年分の売上データをマージして保持（2025年はG列=インデックス6を指定）
+    const rev2026 = get(3) ? processRevenues(get(3), 5) : [];
+    const rev2025 = res[7] && res[7].status === 'fulfilled' ? processRevenues(res[7].value, 6) : [];
     DB.revenues = [...rev2026, ...rev2025];
     
     DB.marketing = get(4) ? processMarketing(get(4)) : DB.marketing; DB.history = get(5) ? processHistory(get(5)) : []; DB.forecasts = get(6) ? processForecasts(get(6)) : [];
