@@ -162,6 +162,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
   <nav>
     <button class="nav-btn active" data-tab="dashboard">📊 ダッシュボード</button>
     <button class="nav-btn" data-tab="deals">📋 商談管理</button>
+    <button class="nav-btn" data-tab="analysis">📈 売上分析</button>
   </nav>
   <div class="header-right">
     <button class="icon-btn" onclick="reloadData()">🔄 更新</button>
@@ -259,6 +260,48 @@ tr:hover td{background:#fafbff;cursor:pointer}
         <thead><tr><th>企業名</th><th>重要度</th><th>ステータス</th><th>担当</th><th>種別</th><th>流入経路</th><th>成約</th><th>見込売上</th><th>初回商談日</th></tr></thead>
         <tbody id="table-body"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<div id="tab-analysis" class="tab-pane">
+  <div class="controls">
+    <div style="display:flex; gap:8px; align-items:center; font-weight:700; font-size:13px;">
+      <span>対象期間：</span>
+      <select id="analysis-start-month" class="sel" onchange="renderAnalysis()">
+        <option value="0">1月</option><option value="1">2月</option><option value="2">3月</option>
+        <option value="3">4月</option><option value="4">5月</option><option value="5">6月</option>
+        <option value="6">7月</option><option value="7">8月</option><option value="8">9月</option>
+        <option value="9">10月</option><option value="10">11月</option><option value="11">12月</option>
+      </select>
+      <span>～</span>
+      <select id="analysis-end-month" class="sel" onchange="renderAnalysis()">
+        <option value="0">1月</option><option value="1">2月</option><option value="2">3月</option>
+        <option value="3">4月</option><option value="4">5月</option><option value="5">6月</option>
+        <option value="6">7月</option><option value="7">8月</option><option value="8">9月</option>
+        <option value="9">10月</option><option value="10">11月</option><option value="11" selected>12月</option>
+      </select>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:14px;">
+    <div class="card">
+      <div class="card-head">企業別売上ランキング（法人研修）</div>
+      <div class="card-body">
+        <div class="tbl-wrap" style="max-height: 480px; overflow-y: auto;">
+          <table>
+            <thead>
+              <tr><th>企業名</th><th style="text-align:right;">合計金額</th><th style="text-align:right;">売上比率</th></tr>
+            </thead>
+            <tbody id="analysis-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">売上シェアグラフ</div>
+      <div class="card-body">
+        <div class="chart-wrap" style="height:440px;"><canvas id="chart-analysis"></canvas></div>
+      </div>
     </div>
   </div>
 </div>
@@ -372,7 +415,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
     <div class="sett-field">
       <label class="sett-lbl">スプレッドシート ID</label><input class="sett-inp" id="sett-ssid">
     </div>
-    </div>
+  </div>
   <div class="modal-footer">
     <button class="btn btn-ghost" onclick="closeSettings()">キャンセル</button>
     <button class="btn btn-primary" onclick="saveSettings()">保存して再読み込み</button>
@@ -387,9 +430,8 @@ tr:hover td{background:#fafbff;cursor:pointer}
 const YEAR = 2026, DEFAULT_ID = '1tEopf-vEr0UrpcC_nlBQfZ9uLPW8R0mk';
 
 // 💡【重要：ここにあなたのGASウェブアプリURLを直接貼り付けてください】
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyY4o5cOIGIsuQvcV4C5bzFI06i_6n_O9YCwfhmS1GzJEL9h1M5ZnfUAcOAK2ESy-s/exec';
+const GAS_URL = 'https://script.google.com/macros/s/YOUR_GAS_DEPLOY_ID/exec';
 
-// 💡 外部から読み込むのではなく、変数 GAS_URL の値を使うように固定化
 const cfg = { ssid: localStorage.getItem('ssid') || DEFAULT_ID, asUrl: GAS_URL };
 
 const SHEETS = { deals: '【営業】商談管理', target: '【共通】目標管理(2026)', revenue: '【参照】売上管理(2026)', actions: '【営業】要因アクション', marketing: '【マーケ】CV/商談', history: '【履歴】サマリー', forecasts: '見込み管理' };
@@ -480,12 +522,19 @@ function showLoading(on){ $('dashboard-loading').style.display=on?'flex':'none';
 function useDemoData() {
   DB.deals = [{rowIndex:2,company:'サンプルテクノロジー',status:'提案済',priority:'★★',assignee:'川畑',hireType:'中途',type:'AI, 開発',contract:'',source:'Google広告',revenue:1200000}];
   DB.targets = { '合計':{name:'合計',targetTotal:0,actualTotal:0,achvTotal:0.24,mVal:4500000}, '川畑':{name:'川畑',targetTotal:0,actualTotal:0,achvTotal:0.25,mVal:2000000}, '松木':{name:'松木',targetTotal:0,actualTotal:0,achvTotal:0.26,mVal:1500000}, '林':{name:'林',targetTotal:0,actualTotal:0,achvTotal:0.20,mVal:1000000} };
-  DB.revenues = [{month:new Date(2026,0,1),cat:'法人研修',amount:0,rep:'川畑'}]; DB.actions = [];
+  // 💡 売上分析の動作テストがしやすいようデモデータを追加
+  DB.revenues = [
+    {month:new Date(2026,4,1),cat:'法人研修',name:'株式会社Aシステム',amount:2400000,rep:'川畑'},
+    {month:new Date(2026,5,1),cat:'法人研修',name:'Bテクノロジー株式会社',amount:1800000,rep:'松木'},
+    {month:new Date(2026,5,1),cat:'法人研修',name:'Cソリューションズ',amount:1200000,rep:'林'},
+    {month:new Date(2026,6,1),cat:'その他',name:'D個人向けサービス',amount:500000,rep:'なし'}
+  ];
+  DB.actions = [];
   DB.marketing = { cv: { 'AI': Array(12).fill(10), 'インフラ': Array(12).fill(8), '開発': Array(12).fill(12), '組込み': Array(12).fill(5) }, deal: { 'AI': Array(12).fill(2), 'インフラ': Array(12).fill(1), '開発': Array(12).fill(3), '組込み': Array(12).fill(0) } };
   DB.forecasts = [{rowIndex:2, company:'見込み企業A（AI研修）', assignee:'川畑', revenue:500000, quantity:2, note:'7月導入予定'}];
 }
 
-function renderAll() { renderDashboard(); renderDeals(); }
+function renderAll() { renderDashboard(); renderDeals(); renderAnalysis(); }
 function getPastSnapshot() { if (!DB.history || DB.history.length === 0) return null; const today = new Date().toDateString(); for (let i = DB.history.length - 1; i >= 0; i--) { if (DB.history[i].date && DB.history[i].date.toDateString() !== today && DB.history[i].date < new Date()) return DB.history[i]; } return DB.history[DB.history.length - 1] || null; }
 function getDiffStr(cur, past, isMonetary = false) { if (!past) return ''; const diff = cur - past; if (diff === 0) return ' <span style="color:#94a3b8; font-size:12px; margin-left:6px;">(±0)</span>'; return ` <span style="color:${diff > 0 ? '#059669':'#dc2626'}; font-size:12px; font-weight:700; margin-left:6px;">(${diff > 0 ? '+':''}${isMonetary ? Math.round(diff).toLocaleString() : diff})</span>`; }
 
@@ -619,7 +668,7 @@ function openDealModal(deal){
   const act=DB.actions.find(a=>a.company&&(deal.company.includes(a.company.split(' ')[0])||a.company.includes(deal.company.split('（')[0])));
   if(act){ $('body-act').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"><div><div class="detail-lbl">阻害要因</div><div>${act.barrier||'—'}</div></div><div><div class="detail-lbl">アクション</div><div>${act.action||'—'}</div></div></div>`; $('m-action-section').style.display='block'; }
   else { $('m-action-section').style.display='none'; }
-  ['nt','ux','act'].forEach(k=>{ $('btn-'+k)?.classList.remove('open'); $('body-'+k)?.classList.remove('open'); if($('chv-'+k)) $('chv-'+k).style.transform = $('btn-'+k).classList.contains('open') ? 'rotate(180deg)' : ''; });
+  ['nt','ux','act'].forEach(k=>{ $('btn-'+k)?.classList.remove('open'); $('body-'+k)?.classList.remove('open'); if($('chv-'+k)) $('chv-'+k).style.transform = ''; });
   $('deal-overlay').classList.remove('hidden');
 }
 
@@ -627,7 +676,7 @@ function openNewDealModal(){
   UI.activeDeal = null; $('m-company').textContent = "新規商談の追加"; $('m-sub').innerHTML = '';
   Object.keys(DEAL_FIELDS).forEach(id => $(id).value = id==='m-edit-revenue'?0:'');
   $('m-edit-status').innerHTML = STATUSES.map(s => `<option>${s}</option>`).join(''); $('m-edit-status').value = '商談前';
-  document.querySelectorAll('#m-edit-type-options input').forEach(cb => cb.checked = false); updateTypeLabel();
+  document.querySelectorAll('#m-edit-type-options input').forEach(cb => false); updateTypeLabel();
   $('m-edit-firstMeet').value = ''; $('m-edit-step1').checked = false; $('m-edit-step5').checked = false; $('m-action-section').style.display='none';
   $('deal-overlay').classList.remove('hidden');
 }
@@ -679,13 +728,106 @@ async function saveForecasts() {
 
 function openSettings(){ $('sett-ssid').value=cfg.ssid; $('sett-overlay').classList.remove('hidden'); }
 function closeSettings(){ $('sett-overlay').classList.add('hidden'); }
-
-// 💡 saveSettings から asUrl の保存処理を排除
 function saveSettings(){ cfg.ssid=$('sett-ssid').value.trim(); localStorage.setItem('ssid',cfg.ssid); closeSettings(); reloadData(); }
 
-document.querySelectorAll('.nav-btn').forEach(btn=>{ btn.addEventListener('click',()=>{ UI.tab=btn.dataset.tab; document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+UI.tab)); }); });
+// 💡【修正】タブの切り替え処理に売上分析タブの描画トリガーを連動
+document.querySelectorAll('.nav-btn').forEach(btn=>{ btn.addEventListener('click',()=>{ UI.tab=btn.dataset.tab; document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+UI.tab)); if(UI.tab==='analysis') renderAnalysis(); }); });
 let _nt; function notify(msg,type='ok'){ const el=$('notif'); el.textContent=msg; el.className=`notif ${type} show`; clearTimeout(_nt); _nt=setTimeout(()=>el.classList.remove('show'),3500); }
-async function reloadData(){ ['monthly','funnel','source','marketing'].forEach(destroyChart); await loadAllData(); }
+
+// 💡【修正】更新時の破棄対象に新チャート「analysis」を追記
+async function reloadData(){ ['monthly','funnel','source','marketing','analysis'].forEach(destroyChart); await loadAllData(); }
+
+// 💡【追加】新タブ「売上分析」のロジック実装
+function renderAnalysis() {
+  destroyChart('analysis');
+  const sm = parseInt($('analysis-start-month').value);
+  const em = parseInt($('analysis-end-month').value);
+  
+  // 「法人研修」カテゴリかつ指定期間内の売上レコードを抽出
+  const targetRevenues = DB.revenues.filter(r => 
+    r.cat === '法人研修' && 
+    r.month && 
+    r.month.getFullYear() === YEAR &&
+    r.month.getMonth() >= sm && 
+    r.month.getMonth() <= em
+  );
+  
+  const companyMap = {};
+  let totalAmount = 0;
+  
+  // 企業ごとに売上高を合算
+  targetRevenues.forEach(r => {
+    const cName = r.name ? r.name.trim() : '不明な企業';
+    companyMap[cName] = (companyMap[cName] || 0) + r.amount;
+    totalAmount += r.amount;
+  });
+  
+  // 配列に直して売上高順（降順）でソート
+  const sortedCompanies = Object.keys(companyMap).map(name => {
+    const amount = companyMap[name];
+    const ratio = totalAmount > 0 ? (amount / totalAmount * 100).toFixed(1) : '0.0';
+    return { name, amount, ratio };
+  }).sort((a, b) => b.amount - a.amount);
+  
+  // テーブル（表）へデータを注入
+  const tbody = $('analysis-table-body');
+  if (sortedCompanies.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px;color:#9ca3af">指定期間内に法人研修の売上データがありません</td></tr>';
+  } else {
+    tbody.innerHTML = sortedCompanies.map(c => `
+      <tr>
+        <td><strong>${c.name}</strong></td>
+        <td style="text-align:right;">${c.amount.toLocaleString()}円</td>
+        <td style="text-align:right; font-weight:700; color:#1e3a8a;">${c.ratio}%</td>
+      </tr>
+    `).join('');
+  }
+  
+  // 円グラフ（Doughnut）の描画処理
+  if (sortedCompanies.length > 0) {
+    // 企業名とパーセンテージをラベルで常に可視化
+    const chartLabels = sortedCompanies.map(c => `${c.name} (${c.ratio}%)`);
+    const chartData = sortedCompanies.map(c => c.amount);
+    
+    // 企業数が多いときのためのカラーパレット
+    const palette = [
+      '#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777',
+      '#0284c7', '#ea580c', '#16a34a', '#4f46e5', '#9333ea',
+      '#ed64a6', '#475569', '#cbd5e1'
+    ];
+    const bgColors = chartLabels.map((_, i) => palette[i % palette.length]);
+    
+    UI.charts.analysis = new Chart($('chart-analysis'), {
+      type: 'doughnut',
+      data: {
+        labels: chartLabels,
+        datasets: [{
+          data: chartData,
+          backgroundColor: bgColors
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { font: { size: 11 }, padding: 10 }
+          },
+          tooltip: {
+            callbacks: {
+              // ホバー時に企業名・%に加えて正確な日本円金額を表示
+              label: function(context) {
+                const val = context.raw || 0;
+                return ` 売上額: ${val.toLocaleString()}円`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+}
 
 // ツールチップ
 const pbTooltip = document.createElement('div'); pbTooltip.className = 'custom-pb-tooltip'; document.body.appendChild(pbTooltip);
