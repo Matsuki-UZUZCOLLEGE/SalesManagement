@@ -493,7 +493,32 @@ function safeStr(v) { return (v===null||v===undefined) ? '' : String(v).replace(
 function processTargets(rows) {
   const res={}; rows.slice(2).forEach((r,i)=>{ const name=r[0]; if(!name)return; res[String(name)]={name:String(name),rowIndex:i+3,targetMax:parseNum(r[1]),targetTotal:parseNum(r[2]),targetH1:parseNum(r[3]),targetH2:parseNum(r[4]),withForecast:parseNum(r[5]),actualTotal:parseNum(r[6]),actualH1:parseNum(r[7]),actualH2:parseNum(r[8]),achvTotal:parseNum(r[9]),achvH1:parseNum(r[10]),achvH2:parseNum(r[11]),mVal:parseNum(r[12]), mList:safeStr(r[13])}; }); return res;
 }
-function processRevenues(rows) { return rows.slice(1).map(r=>{ const m=parseDate(r[0]); return m ? {month:m, cat:r[1]||'その他', name:r[2]||'', amount:parseNum(r[5]), rep:r[17]||''} : null; }).filter(Boolean); }function processRevenues(rows, amountColIndex = 5) { return rows.slice(1).map(r=>{ const m=parseDate(r[0]); return m ? {month:m, cat:r[1]||'その他', name:r[2]||'', amount:parseNum(r[amountColIndex]), rep:r[17]||''} : null; }).filter(Boolean); }function processActions(rows) { return rows.slice(1).map(r=>({ assignee:r[1]||'', company:String(r[2]||'').trim(), plan:r[3]||'', revenue:parseNum(r[4]), prob:parseNum(r[5]), barrier:safeStr(r[6]), action:safeStr(r[7]) })).filter(d=>d.company); }
+function processRevenues(rows, amountColIndex = 5) { 
+  return rows.slice(1).map(r=>{ 
+    const m=parseDate(r[0]); 
+    // 金額の列から逆算して単価と数量の列のインデックスを特定
+    const upIdx = amountColIndex - 2;
+    const qtyIdx = amountColIndex - 1;
+    
+    let amt = parseNum(r[amountColIndex]);
+    let qty = qtyIdx >= 0 ? parseNum(r[qtyIdx]) : 1;
+    if (qty === 0) qty = 1; // 数量が0または空なら1にする
+    
+    let uPrice = upIdx >= 0 ? parseNum(r[upIdx]) : 0;
+    if (uPrice === 0) uPrice = amt; // 単価列が数値でない、または0なら合計金額を単価とする
+    
+    return m ? {
+      month: m, 
+      cat: r[1]||'その他', 
+      name: r[2]||'', 
+      fullName: r[2]||'', // 💡 明細表示用に元のフル項目名を保持
+      unitPrice: uPrice,  // 💡 単価
+      quantity: qty,      // 💡 数量
+      amount: amt, 
+      rep: r[17]||''
+    } : null; 
+  }).filter(Boolean); 
+}
 function processMarketing(rows) {
   const res = { cv: { 'AI': Array(12).fill(0), 'インフラ': Array(12).fill(0), '開発': Array(12).fill(0), '組込み': Array(12).fill(0) }, deal: { 'AI': Array(12).fill(2), 'インフラ': Array(12).fill(1), '開発': Array(12).fill(3), '組込み': Array(12).fill(0) } };
   if (!rows) return res; let isDeal = false; const cats = ['AI', 'インフラ', '開発', '組込み'];
@@ -758,12 +783,10 @@ async function reloadData(){ ['monthly','funnel','source','marketing','analysis'
 
 function renderAnalysis() {
   destroyChart('analysis');
-  // 💡【変更】選択された「年」を取得するロジックに変更
   const selYear = parseInt($('analysis-year').value);
   const sm = parseInt($('analysis-start-month').value);
   const em = parseInt($('analysis-end-month').value);
   
-  // 💡【変更】指定された年（selYear）に一致するデータのみを抽出
   const targetRevenues = DB.revenues.filter(r => 
     r.cat === '法人研修' && 
     r.month && 
@@ -777,8 +800,6 @@ function renderAnalysis() {
   
   targetRevenues.forEach(r => {
     let cName = r.name ? r.name.trim() : '';
-    
-    // 💡【変更】全角カッコ（）および半角カッコ() 内の企業名だけを取り出すロジックを実装
     const match = cName.match(/[（(](.*?)[）)]/);
     if (match && match[1]) {
       cName = match[1].trim();
@@ -786,28 +807,62 @@ function renderAnalysis() {
       cName = cName || '不明な企業';
     }
     
-    companyMap[cName] = (companyMap[cName] || 0) + r.amount;
+    // 💡 企業ごとに合計金額と明細リストを格納
+    if (!companyMap[cName]) {
+      companyMap[cName] = { amount: 0, list: [] };
+    }
+    companyMap[cName].amount += r.amount;
+    companyMap[cName].list.push(r);
     totalAmount += r.amount;
   });
   
-// 配列に直して売上高順（降順）でソート
   const sortedCompanies = Object.keys(companyMap).map(name => {
-    const amount = Math.round(companyMap[name]); // 💡 小数点以下を四捨五入して整数にする
-    const ratio = totalAmount > 0 ? (companyMap[name] / totalAmount * 100).toFixed(1) : '0.0';
-    return { name, amount, ratio };
+    const amount = Math.round(companyMap[name].amount);
+    const ratio = totalAmount > 0 ? (companyMap[name].amount / totalAmount * 100).toFixed(1) : '0.0';
+    const list = companyMap[name].list;
+    return { name, amount, ratio, list };
   }).sort((a, b) => b.amount - a.amount);
   
   const tbody = $('analysis-table-body');
   if (sortedCompanies.length === 0) {
     tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px;color:#9ca3af">指定期間内に法人研修の売上データがありません</td></tr>';
   } else {
-    tbody.innerHTML = sortedCompanies.map(c => `
-      <tr>
-        <td><strong>${c.name}</strong></td>
-        <td style="text-align:right;">${c.amount.toLocaleString()}円</td>
-        <td style="text-align:right; font-weight:700; color:#1e3a8a;">${c.ratio}%</td>
-      </tr>
-    `).join('');
+    // 💡 親行をクリックすると、直下の子行（明細テーブル）がトグル開閉するHTMLを生成
+    tbody.innerHTML = sortedCompanies.map((c, idx) => {
+      const detailRows = c.list.map(r => `
+        <tr>
+          <td style="padding-left: 20px; color: #4b5563;">${r.fullName}</td>
+          <td style="text-align:right; color: #4b5563;">${Math.round(r.unitPrice).toLocaleString()}円</td>
+          <td style="text-align:right; color: #4b5563;">${r.quantity.toLocaleString()}</td>
+          <td style="text-align:right; color: #4b5563;">${Math.round(r.amount).toLocaleString()}円</td>
+        </tr>
+      `).join('');
+
+      return `
+        <tr onclick="const el=$('an-detail-${idx}'); el.style.display=el.style.display==='none'?'table-row':'none';" style="cursor:pointer;" title="クリックで明細を開閉">
+          <td><strong>🏢 ${c.name}</strong> <span style="font-size: 10px; color: #2563eb; margin-left: 4px;">▼ 内訳明細</span></td>
+          <td style="text-align:right;">${c.amount.toLocaleString()}円</td>
+          <td style="text-align:right; font-weight:700; color:#1e3a8a;">${c.ratio}%</td>
+        </tr>
+        <tr id="an-detail-${idx}" style="display:none; background: #f8fafc;">
+          <td colspan="3" style="padding: 0;">
+            <table style="width: 100%; margin: 0; background: transparent; border-top: 1px dashed #e2e8f0; font-size: 11px;">
+              <thead>
+                <tr style="background: #f1f5f9;">
+                  <th style="padding-left: 20px; font-weight:600;">項目</th>
+                  <th style="text-align:right; font-weight:600; width:100px;">単価</th>
+                  <th style="text-align:right; font-weight:600; width:60px;">数量</th>
+                  <th style="text-align:right; font-weight:600; width:110px;">合計（税別）</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${detailRows}
+              </tbody>
+            </table>
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
   
   if (sortedCompanies.length > 0) {
