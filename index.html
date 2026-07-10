@@ -687,7 +687,7 @@ function makeCard(deal){
 }
 let dragRowIndex=null; document.addEventListener('dragstart',e=>{if(e.dataTransfer.getData('rowIndex')) dragRowIndex=+e.dataTransfer.getData('rowIndex');});
 async function handleDrop(newStatus){
-  if(!dragRowIndex)return; const d=DB.deals.find(x=>x.rowIndex===dragRowIndex); if(!d||d.status===newStatus)return; const old=d.status; d.status=newStatus; applyFilters(); renderDe Deals();
+  if(!dragRowIndex)return; const d=DB.deals.find(x=>x.rowIndex===dragRowIndex); if(!d||d.status===newStatus)return; const old=d.status; d.status=newStatus; applyFilters(); renderDeals();
   if(cfg.asUrl){ try{ await fetch(`${cfg.asUrl}?action=update&sheet=${encodeURIComponent(SHEETS.deals)}&row=${d.rowIndex}&col=3&value=${encodeURIComponent(newStatus)}`,{redirect:'follow'}); notify(`${d.company} → ${newStatus}`,'ok'); }catch(e){ d.status=old; applyFilters(); notify('保存エラー: '+e.message,'err');} } dragRowIndex=null;
 }
 function renderTable(deals){
