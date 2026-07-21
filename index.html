@@ -400,7 +400,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
     <div style="margin-bottom: 4px;"><button class="btn btn-primary btn-sm" onclick="addForecastRow()">＋ 新規見込み追加</button></div>
     <div class="tbl-wrap" style="max-height: 500px; overflow-y: auto; border: 1px solid #e2e8f0;">
       <table style="table-layout: fixed; width: 100%;">
-        <thead><tr><th>企業名（＋内容）</th><th style="width: 110px;">担当者</th><th style="width: 130px;">金額（円）</th><th style="width: 100px;">数量</th><th style="width: 130px; text-align: right;">小計</th><th>備考</th><th style="width: 70px; text-align: center;">操作</th></tr></thead>
+        <thead><tr><th>企業名（＋内容）</th><th style="width: 100px;">担当者</th><th style="width: 120px;">金額（円）</th><th style="width: 70px;">数量</th><th style="width: 100px;">成約確度</th><th style="width: 120px; text-align: right;">小計(期待値)</th><th>備考</th><th style="width: 60px; text-align: center;">操作</th></tr></thead>
         <tbody id="forecast-table-body"></tbody>
       </table>
     </div>
@@ -530,7 +530,22 @@ function processMarketing(rows) {
   rows.forEach(r => { if (!r) return; const lbl = String(r[0] || '').trim(); if (lbl === '商談') { isDeal = true; return; } if (cats.includes(lbl)) { const tgt = isDeal ? res.deal : res.cv; for (let m = 0; m < 12; m++) tgt[lbl][m] = parseNum(r[m + 1]); } }); return res;
 }
 function processHistory(rows) { if (!rows || rows.length <= 1) return []; return rows.slice(1).map(r => ({ date: parseDate(r[0]), totalActual: parseNum(r[1]), totalAll: parseNum(r[2]), activeDeals: parseNum(r[3]), totalDeals: parseNum(r[4]), kawabataAct: parseNum(r[5]), kawabataEst: parseNum(r[6]), matsukiAct: parseNum(r[7]), matsukiEst: parseNum(r[8]), hayashiAct: parseNum(r[9]), hayashiEst: parseNum(r[10]) })).filter(h => h.date); }
-function processForecasts(rows) { if (!rows || rows.length <= 1) return []; return rows.slice(1).map((r, i) => ({ rowIndex: i + 2, company: r[0] ? String(r[0]).trim() : '', assignee: r[1] ? String(r[1]).trim() : '', revenue: parseNum(r[2]), quantity: parseNum(r[3]), note: r[5] ? String(r[5]).trim() : '' })).filter(f => f.company || f.assignee); }
+function processForecasts(rows) { 
+  if (!rows || rows.length <= 1) return []; 
+  return rows.slice(1).map((r, i) => {
+    const probStr = String(r[4] || '').replace('%', '');
+    const prob = parseNum(probStr) || 100;
+    return { 
+      rowIndex: i + 2, 
+      company: r[0] ? String(r[0]).trim() : '', 
+      assignee: r[1] ? String(r[1]).trim() : '', 
+      revenue: parseNum(r[2]), 
+      quantity: parseNum(r[3]), 
+      probability: prob, // 💡 成約確度(%)
+      note: r[6] ? String(r[6]).trim() : '' // 💡 7列目(G列)が備考
+    };
+  }).filter(f => f.company || f.assignee); 
+}
 
 function parseNum(v){ if(!v)return 0; if(typeof v==='number')return v; const n=parseFloat(String(v).replace(/[,¥$]/g,'')); return isNaN(n)?0:n; }
 function parseDate(v){ if(!v)return null; if(v instanceof Date)return isNaN(v)?null:v; const d=new Date(v); return isNaN(d)?null:d; }
@@ -587,7 +602,7 @@ function getPastSnapshot() { if (!DB.history || DB.history.length === 0) return 
 function getDiffStr(cur, past, isMonetary = false) { if (!past) return ''; const diff = cur - past; if (diff === 0) return ' <span style="color:#94a3b8; font-size:12px; margin-left:6px;">(±0)</span>'; return ` <span style="color:${diff > 0 ? '#059669':'#dc2626'}; font-size:12px; font-weight:700; margin-left:6px;">(${diff > 0 ? '+':''}${isMonetary ? Math.round(diff).toLocaleString() : diff})</span>`; }
 
 function renderDashboard() {
-  ['川畑', '松木', '林', 'なし'].forEach(n => { if (DB.targets[n]) { DB.targets[n].mVal = DB.forecasts.filter(f => f.assignee === n).reduce((s, f) => s + (f.revenue * f.quantity), 0); if (DB.targets[n].targetTotal > 0) DB.targets[n].achvTotal = DB.targets[n].actualTotal / DB.targets[n].targetTotal; } });
+  ['川畑', '松木', '林', 'なし'].forEach(n => { if (DB.targets[n]) { DB.targets[n].mVal = DB.forecasts.filter(f => f.assignee === n).reduce((s, f) => s + (f.revenue * f.quantity * ((f.probability || 100) / 100)), 0); if (DB.targets[n].targetTotal > 0) DB.targets[n].achvTotal = DB.targets[n].actualTotal / DB.targets[n].targetTotal; } });
   if (DB.targets['合計']) { 
     DB.targets['合計'].mVal = ['川畑', '松木', '林', 'なし'].reduce((s, n) => s + (DB.targets[n]?.mVal || 0), 0); 
     DB.targets['合計'].actualTotal = ['川畑', '松木', '林', 'なし'].reduce((s, n) => s + (DB.targets[n]?.actualTotal || 0), 0); 
@@ -754,19 +769,59 @@ async function saveDeal(){
 function openForecastModal(assignee) { currentForecastAssignee = assignee; deletedForecastRows = []; currentForecasts = DB.forecasts.filter(f => f.assignee === assignee).map(f => ({ ...f })); $('f-modal-sub').textContent = `担当者: ${assignee}`; $('forecast-overlay').classList.remove('hidden'); renderForecastRows(); }
 function closeForecastModal() { $('forecast-overlay').classList.add('hidden'); }
 function renderForecastRows() {
-  const tbody = $('forecast-table-body'); if (currentForecasts.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:#9ca3af">見込み案件はありません</td></tr>'; return; }
-  tbody.innerHTML = currentForecasts.map((f, idx) => `<tr><td><input type="text" class="modal-input" value="${f.company}" oninput="currentForecasts[${idx}].company=this.value" placeholder="企業名"></td><td><select class="modal-sel" onchange="currentForecasts[${idx}].assignee=this.value"><option ${f.assignee==='川畑'?'selected':''}>川畑</option><option ${f.assignee==='松木'?'selected':''}>松木</option><option ${f.assignee==='林'?'selected':''}>林</option><option ${f.assignee==='なし'?'selected':''}>なし</option></select></td><td><input type="number" class="modal-input" value="${f.revenue||''}" oninput="currentForecasts[${idx}].revenue=parseNum(this.value); refreshForecastSubtotal(${idx});"></td><td><input type="number" class="modal-input" value="${f.quantity||1}" oninput="currentForecasts[${idx}].quantity=parseNum(this.value); refreshForecastSubtotal(${idx});"></td><td id="f-subtotal-${idx}" style="text-align:right; font-weight:700; color:#1e3a8a;">${(f.revenue*f.quantity).toLocaleString()}円</td><td><input type="text" class="modal-input" value="${f.note||''}" oninput="currentForecasts[${idx}].note=this.value" placeholder="備考"></td><td style="text-align:center;"><button class="btn btn-ghost btn-sm" style="color:#dc2626;" onclick="deleteForecastRow(${idx})">削除</button></td></tr>`).join('');
+  const tbody = $('forecast-table-body'); 
+  if (currentForecasts.length === 0) { 
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:#9ca3af">見込み案件はありません</td></tr>'; 
+    return; 
+  }
+  
+  // 10%〜100%のプルダウン肢を作成するヘルパー
+  const makeProbOpts = (curVal) => {
+    let html = '';
+    for (let p = 100; p >= 10; p -= 10) {
+      html += `<option value="${p}" ${curVal === p ? 'selected' : ''}>${p}%</option>`;
+    }
+    return html;
+  };
+
+  tbody.innerHTML = currentForecasts.map((f, idx) => {
+    const prob = f.probability || 100;
+    const subtotal = Math.round(f.revenue * f.quantity * (prob / 100));
+    return `<tr>
+      <td><input type="text" class="modal-input" value="${f.company}" oninput="currentForecasts[${idx}].company=this.value" placeholder="企業名"></td>
+      <td><select class="modal-sel" onchange="currentForecasts[${idx}].assignee=this.value"><option ${f.assignee==='川畑'?'selected':''}>川畑</option><option ${f.assignee==='松木'?'selected':''}>松木</option><option ${f.assignee==='林'?'selected':''}>林</option><option ${f.assignee==='なし'?'selected':''}>なし</option></select></td>
+      <td><input type="number" class="modal-input" value="${f.revenue||''}" oninput="currentForecasts[${idx}].revenue=parseNum(this.value); refreshForecastSubtotal(${idx});"></td>
+      <td><input type="number" class="modal-input" value="${f.quantity||1}" oninput="currentForecasts[${idx}].quantity=parseNum(this.value); refreshForecastSubtotal(${idx});"></td>
+      <td><select class="modal-sel" onchange="currentForecasts[${idx}].probability=parseNum(this.value); refreshForecastSubtotal(${idx});">${makeProbOpts(prob)}</select></td>
+      <td id="f-subtotal-${idx}" style="text-align:right; font-weight:700; color:#1e3a8a;">${subtotal.toLocaleString()}円</td>
+      <td><input type="text" class="modal-input" value="${f.note||''}" oninput="currentForecasts[${idx}].note=this.value" placeholder="備考"></td>
+      <td style="text-align:center;"><button class="btn btn-ghost btn-sm" style="color:#dc2626;" onclick="deleteForecastRow(${idx})">削除</button></td>
+    </tr>`;
+  }).join('');
 }
-function refreshForecastSubtotal(idx) { const f = currentForecasts[idx]; if($(`f-subtotal-${idx}`)) $(`f-subtotal-${idx}`).textContent = (f.revenue * f.quantity).toLocaleString() + '円'; }
-function addForecastRow() { currentForecasts.push({ rowIndex: null, company: '', assignee: currentForecastAssignee, revenue: 0, quantity: 1, note: '' }); renderForecastRows(); }
-function deleteForecastRow(idx) { currentForecasts.splice(idx, 1); renderForecastRows(); }
+
+function refreshForecastSubtotal(idx) { 
+  const f = currentForecasts[idx]; 
+  const prob = f.probability || 100;
+  const subtotal = Math.round(f.revenue * f.quantity * (prob / 100));
+  if($(`f-subtotal-${idx}`)) $(`f-subtotal-${idx}`).textContent = subtotal.toLocaleString() + '円'; 
+}
+
+function addForecastRow() { 
+  currentForecasts.push({ rowIndex: null, company: '', assignee: currentForecastAssignee, revenue: 0, quantity: 1, probability: 100, note: '' }); 
+  renderForecastRows(); 
+}
 
 async function saveForecasts() {
   if (!cfg.asUrl) { notify('Apps Script URLを設定してください', 'warn'); return; }
   const validItems = currentForecasts.filter(f => f.company.trim() !== '');
   try {
     notify('変更内容をスプレッドシートに一括保存中... 🔄', 'warn');
-    const payload = validItems.map(f => [ f.company.trim(), f.assignee, f.revenue, f.quantity, f.revenue * f.quantity, f.note.trim() ]);
+    const payload = validItems.map(f => {
+      const prob = f.probability || 100;
+      const expectedVal = Math.round(f.revenue * f.quantity * (prob / 100));
+      return [ f.company.trim(), f.assignee, f.revenue, f.quantity, prob + '%', expectedVal, f.note.trim() ];
+    });
     const url = `${cfg.asUrl}?action=saveForecasts&sheet=${encodeURIComponent(SHEETS.forecasts)}&assignee=${encodeURIComponent(currentForecastAssignee)}&values=${encodeURIComponent(JSON.stringify(payload))}`;
     const res = await (await fetch(url, { redirect: 'follow' })).json();
     if (res.status === 'error') throw new Error(res.message);
@@ -774,6 +829,20 @@ async function saveForecasts() {
   } catch (e) { notify('保存エラー: ' + e.message, 'err'); }
 }
 
+// ツールチップ内の表示調整（マウスホバー時）
+document.addEventListener('mouseover', e => {
+  const row = e.target.closest('.pb-row'); if (!row) return; const ass = row.getAttribute('data-assignee'); if (!ass) return;
+  const list = DB.forecasts.filter(f => f.assignee === ass && f.company.trim() !== '');
+  if (list.length > 0) {
+    let html = `<div style="font-weight:700; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:4px; color:#38bdf8;">【${ass} の売上見込み内訳（期待値）】</div>`;
+    list.forEach((f, i) => { 
+      const prob = f.probability || 100;
+      const expectedVal = Math.round(f.revenue * f.quantity * (prob / 100));
+      html += `<div style="margin-bottom: 6px;"><div style="font-weight:700;">${i + 1}. ${f.company} (確度: ${prob}%)</div><div style="color:#cbd5e1; padding-left:10px;">➔ ${f.revenue.toLocaleString()}円 × ${f.quantity} × ${prob}% ＝ <span style="color:#4ade80; font-weight:700;">${expectedVal.toLocaleString()}円</span></div>${f.note?`<div style="color:#94a3b8; padding-left:10px; font-style:italic; font-size:10px;">※ ${f.note}</div>`:''}</div>`; 
+    });
+    pbTooltip.innerHTML = html; posTooltip(e); pbTooltip.classList.add('show');
+  } else { pbTooltip.innerHTML = `<div style="color:#94a3b8;">登録された売上見込みはありません。</div>`; posTooltip(e); pbTooltip.classList.add('show'); }
+});
 function openSettings(){ $('sett-ssid').value=cfg.ssid; $('sett-overlay').classList.remove('hidden'); }
 function closeSettings(){ $('sett-overlay').classList.add('hidden'); }
 function saveSettings(){ cfg.ssid=$('sett-ssid').value.trim(); localStorage.setItem('ssid',cfg.ssid); closeSettings(); reloadData(); }
