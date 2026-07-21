@@ -898,9 +898,10 @@ function renderAnalysis() {
     tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px;color:#9ca3af">指定期間内に法人研修の売上データがありません</td></tr>';
   } else {
     tbody.innerHTML = sortedCompanies.map((c, idx) => {
-      const detailRows = c.list.map(r => `
+const detailRows = c.list.map(r => `
         <tr>
-          <td style="padding-left: 20px; color: #4b5563;">${r.fullName}</td>
+          <td style="padding-left: 20px; color: #4b5563; width: 75px;">${r.month ? (r.month.getMonth() + 1) + '月' : '—'}</td>
+          <td style="color: #4b5563;">${r.fullName}</td>
           <td style="text-align:right; color: #4b5563;">${Math.round(r.unitPrice).toLocaleString()}円</td>
           <td style="text-align:right; color: #4b5563;">${r.quantity.toLocaleString()}</td>
           <td style="text-align:right; color: #4b5563;">${Math.round(r.amount).toLocaleString()}円</td>
@@ -918,7 +919,8 @@ function renderAnalysis() {
             <table style="width: 100%; margin: 0; background: transparent; border-top: 1px dashed #e2e8f0; font-size: 11px;">
               <thead>
                 <tr style="background: #f1f5f9;">
-                  <th style="padding-left: 20px; font-weight:600;">項目</th>
+                  <th style="padding-left: 20px; font-weight:600; width: 75px;">計上月</th>
+                  <th style="font-weight:600;">項目</th>
                   <th style="text-align:right; font-weight:600; width:100px;">単価</th>
                   <th style="text-align:right; font-weight:600; width:60px;">数量</th>
                   <th style="text-align:right; font-weight:600; width:110px;">合計（税別）</th>
