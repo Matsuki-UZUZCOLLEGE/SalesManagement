@@ -533,16 +533,25 @@ function processHistory(rows) { if (!rows || rows.length <= 1) return []; return
 function processForecasts(rows) { 
   if (!rows || rows.length <= 1) return []; 
   return rows.slice(1).map((r, i) => {
-    const probStr = String(r[4] || '').replace('%', '');
-    const prob = parseNum(probStr) || 100;
+    let rawProb = r[4];
+    let prob = 100; // 初期値（空欄時など）
+    
+    if (rawProb !== null && rawProb !== undefined && rawProb !== '') {
+      let num = parseNum(String(rawProb).replace('%', ''));
+      if (num > 0) {
+        // 💡 1以下の小数の場合（スプレッドシートの%表示で「1」や「0.8」として取得された場合）は100倍する
+        prob = num <= 1 ? Math.round(num * 100) : Math.round(num);
+      }
+    }
+
     return { 
       rowIndex: i + 2, 
       company: r[0] ? String(r[0]).trim() : '', 
       assignee: r[1] ? String(r[1]).trim() : '', 
       revenue: parseNum(r[2]), 
       quantity: parseNum(r[3]), 
-      probability: prob, // 💡 成約確度(%)
-      note: r[6] ? String(r[6]).trim() : '' // 💡 7列目(G列)が備考
+      probability: prob, // 💡 常に10〜100の整数値（例: 100）に自動統一
+      note: r[6] ? String(r[6]).trim() : '' 
     };
   }).filter(f => f.company || f.assignee); 
 }
