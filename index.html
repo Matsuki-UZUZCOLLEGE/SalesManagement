@@ -821,6 +821,11 @@ function addForecastRow() {
   renderForecastRows(); 
 }
 
+// 💡【追加】削除ボタンを押した際に対象の行を削除して再描画する関数
+function deleteForecastRow(idx) { 
+  currentForecasts.splice(idx, 1); 
+  renderForecastRows(); 
+}
 async function saveForecasts() {
   if (!cfg.asUrl) { notify('Apps Script URLを設定してください', 'warn'); return; }
   const validItems = currentForecasts.filter(f => f.company.trim() !== '');
