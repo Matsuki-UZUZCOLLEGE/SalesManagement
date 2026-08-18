@@ -167,9 +167,44 @@ tr:hover td{background:#fafbff;cursor:pointer}
 .deep-row td { vertical-align: top; padding: 6px 8px; }
 .deep-cell-single { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 34px; min-height: 34px; resize: none; }
 .deep-cell-expanded { white-space: pre-wrap; word-break: break-word; min-height: 90px; height: auto; resize: vertical; }
-.deep-expand-btn { background: none; border: none; cursor: pointer; font-size: 11px; color: #64748b; padding: 2px 6px; border-radius: 4px; transition: 0.15s; }
-.deep-expand-btn:hover { background: #e2e8f0; color: #1e293b; }
-.deep-expand-btn.open { transform: rotate(180deg); }
+/* 💡【改善】左側展開ボタンの存在感UP＆開閉状態の明確化 */
+.deep-expand-btn {
+  background: #e2e8f0;
+  border: 2px solid #94a3b8;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  color: #334155;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%; /* くっきり目立つ丸型ボタン */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.deep-expand-btn:hover {
+  background: #cbd5e1;
+  color: #0f172a;
+  transform: scale(1.15);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* 💡 開いている状態（展開時）：青色に発光＋アイコン180度回転 */
+.deep-expand-btn.open {
+  background: #2563eb !important; /* 鮮やかな青 */
+  color: #ffffff !important;
+  border-color: #1d4ed8 !important;
+  transform: rotate(180deg);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.5);
+}
+
+.deep-expand-btn.open:hover {
+  background: #1d4ed8 !important;
+  transform: rotate(180deg) scale(1.15);
+}
 
 /* 折りたたみ時の編集不可スタイル */
 .modal-input:disabled, .modal-ta:disabled, .modal-input[readonly], .modal-ta[readonly] {
@@ -237,14 +272,29 @@ tr:hover td{background:#fafbff;cursor:pointer}
   transition: all 0.2s ease;
 }
 
-@keyframes slowPulse {
-  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 rgba(37, 99, 235, 0); }
-  50% { opacity: 0.7; transform: scale(1.03); box-shadow: 0 0 16px rgba(37, 99, 235, 0.6); }
+/* 💡【改善】「変更を保存する」ボタンの超強力な赤〜オレンジ点滅＆拡大アニメーション */
+@keyframes intensePulse {
+  0% {
+    background-color: #dc2626 !important; /* 警告の赤 */
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.8);
+    transform: scale(1);
+  }
+  50% {
+    background-color: #ea580c !important; /* 鮮やかなオレンジ */
+    box-shadow: 0 0 22px 8px rgba(234, 88, 12, 0.75); /* 強烈なネオン発光 */
+    transform: scale(1.08); /* 大きく拡大 */
+  }
+  100% {
+    background-color: #dc2626 !important;
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+    transform: scale(1);
+  }
 }
 
 .btn-dirty {
-  animation: slowPulse 2.5s infinite ease-in-out;
-  background: #2563eb !important;
+  animation: intensePulse 1.2s infinite ease-in-out !important; /* テンポよく点滅 */
+  color: #ffffff !important;
+  border: 2px solid #ffffff !important;
 }
 </style>
 </head>
