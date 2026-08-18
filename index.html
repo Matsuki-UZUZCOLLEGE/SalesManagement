@@ -705,7 +705,7 @@ const PERSON_BAR_COLOR = {川畑:'#0ea5e9', 松木:'#eab308', 林:'#22c55e', な
       PERSON_BADGE_BG = {川畑:'#bae6fd', 松木:'#fef08a', 林:'#bbf7d0', なし:'#e2e8f0'},  
       PERSON_BADGE_TXT = {川畑:'#0c4a6e', 松木:'#713f12', 林:'#14532d', なし:'#475569'};
 
-let DB = { deals:[], targets:{}, revenues:[], actions:[], marketing:{}, history:[], forecasts:[] };
+let DB = { deals:[], targets:{}, revenues:[], actions:[], marketing:{}, history:[], forecasts:[], deep:[] };
 let UI = { tab:'dashboard', view:'kanban', visibleSt:new Set(STATUSES), filterAssignee:'', filterType:'', filterPriority:'', searchText:'', activeDeal:null, charts:{}, monthlyViewMode:'all' };
 let currentForecastAssignee = '', currentForecasts = [], deletedForecastRows = [];
 
@@ -866,6 +866,7 @@ function useDemoData() {
   DB.actions = [];
   DB.marketing = { cv: { 'AI': Array(12).fill(10), 'インフラ': Array(12).fill(8), '開発': Array(12).fill(12), '組込み': Array(12).fill(5) }, deal: { 'AI': Array(12).fill(2), 'インフラ': Array(12).fill(1), '開発': Array(12).fill(3), '組込み': Array(12).fill(0) } };
   DB.forecasts = [{rowIndex:2, company:'見込み企業A（AI研修）', assignee:'川畑', revenue:500000, quantity:2, note:'7月導入予定'}];
+  DB.deep = []; //
 }
 
 // 💡【修正】renderAll関数に renderDeepTable() を追加
@@ -1708,13 +1709,10 @@ async function saveDeepRow(idx) {
     const res = await (await fetch(url, { redirect: 'follow' })).json();
     if (res.status === 'error') throw new Error(res.message);
 
-    // 💡 フラグを倒して点滅クラスを即時削除
-    d.dirty = false;
-    $(`btn-save-row-${idx}`)?.classList.remove('btn-dirty');
-
     notify(`${d.company} を保存しました ✓`, 'ok');
+    
+    // スプレッドシートから最新データを再読み込み（描画も自動で行われます）
     await reloadData(); 
-    renderDeepTable(); // 再描画
   } catch(e) { notify('保存エラー: ' + e.message, 'err'); }
 }
 
