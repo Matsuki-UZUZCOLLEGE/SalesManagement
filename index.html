@@ -548,10 +548,11 @@ tr:hover td{background:#fafbff;cursor:pointer}
 
 <div id="tab-deep" class="tab-pane">
   <div class="controls" style="justify-content: space-between; align-items: center; gap: 10px;">
-    <div style="font-weight:700; font-size:15px; color:#1e3a8a; display:flex; align-items:center; gap:6px; white-space:nowrap;">
+    <div style="font-weight:700; font-size:15px; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
       💼 深耕営業アカウント管理
     </div>
-    <!-- 💡 新設：絞り込みコントロール群 -->
+    
+    <!-- 絞り込みフォーム -->
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; flex:1; max-width:700px; margin:0 10px;">
       <div class="search-box" style="max-width:200px; min-width:140px;">
         <span>🔍</span>
@@ -581,9 +582,11 @@ tr:hover td{background:#fafbff;cursor:pointer}
         <option value="NG">NG</option>
       </select>
     </div>
+
+    <!-- 右上操作ボタン群 -->
     <div style="display:flex; gap:10px; align-items:center; white-space:nowrap;">
-      <span id="deep-unsaved-warning" class="unsaved-warning">⚠️ 未保存の行があります</span>
-      <button id="btn-save-checked-deep" class="btn-save-checked" onclick="saveCheckedDeepRows()">💾 チェック項目を保存</button>
+      <!-- 💡 変更があったときだけ点滅出現するメイン保存ボタン -->
+      <button id="btn-save-dirty-deep" class="btn-save-checked btn-dirty" style="display:none;" onclick="saveAllDirtyDeepRows()"></button>
       <button id="btn-delete-checked-deep" class="btn-delete-checked" onclick="deleteCheckedDeepRows()">🗑️ チェック項目を削除</button>
     </div>
   </div>
@@ -1570,10 +1573,7 @@ function renderDeepTable() {
           <textarea class="modal-ta ${cellClass}" ${isDisabled?'readonly disabled':''} oninput="DB.deep[${idx}].situation=this.value; markDeepDirty(${idx});" placeholder="状況を入力">${row.situation}</textarea>
         </td>
         <td style="text-align:center; vertical-align:middle;">
-          <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
-            <button id="btn-save-row-${idx}" class="btn btn-primary btn-sm ${row.dirty ? 'btn-dirty' : ''}" style="font-size:11px; padding:4px 10px; width:100%; border-radius:6px;" onclick="saveDeepRow(${idx})">保存</button>
-            <button class="btn-delete-row" style="width:100%;" onclick="deleteDeepRow(${idx})">削除</button>
-          </div>
+           <button class="btn-delete-row" style="width:100%;" onclick="deleteDeepRow(${idx})">削除</button>
         </td>
       </tr>
     `;
@@ -1836,12 +1836,69 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (UI.tab === 'deep') renderDeepTable();
   });
 });
-  // 💡 未保存行の存在チェックと警告表示の切替
+// 💡 未保存行の存在チェックと「変更を保存」ボタンの動的更新
 function updateUnsavedWarning() {
-  const el = $('deep-unsaved-warning');
-  if (el) {
-    const hasDirty = DB.deep.some(d => d.dirty);
-    el.style.display = hasDirty ? 'inline-flex' : 'none';
+  const btnSave = $('btn-save-dirty-deep');
+  const dirtyRows = DB.deep.filter(d => d.dirty);
+  
+  if (btnSave) {
+    if (dirtyRows.length > 0) {
+      btnSave.style.display = 'inline-block';
+      btnSave.textContent = `💾 変更された${dirtyRows.length}件を保存`;
+    } else {
+      btnSave.style.display = 'none';
+    }
+  }
+}
+
+// 💡 変更（dirty: true）があった行だけを自動判定して一括保存
+async function saveAllDirtyDeepRows() {
+  if (!cfg.asUrl) { notify('Apps Script URLを設定してください', 'warn'); return; }
+  
+  syncDeepInputsFromDOM(); // 入力中のDOMの値をデータに同期
+  const dirtyRows = DB.deep.filter(d => d.dirty);
+  
+  if (dirtyRows.length === 0) return;
+
+  // 企業名が空の行がないかチェック
+  const invalid = dirtyRows.find(d => !d.company.trim());
+  if (invalid) { 
+    notify('変更された項目の中に企業名が空のデータがあります。企業名を入力してください。', 'err'); 
+    return; 
+  }
+
+  try {
+    notify(`変更のあった ${dirtyRows.length} 件のデータを保存中... 🔄`, 'warn');
+    
+    // 変更があった行だけを1件ずつ送信（他行を上書きしない）
+    for (const d of dirtyRows) {
+      const rowData = [[
+        d.company.trim(),
+        d.assignee || '',
+        d.services.join(', '),
+        d.status,
+        '', // 総売上金額（シート側数式維持）
+        d.strategy || '',
+        JSON.stringify(d.todos || []),
+        d.situation || ''
+      ]];
+
+      let url = d.rowIndex 
+        ? `${cfg.asUrl}?action=updateRow&sheet=${encodeURIComponent(SHEETS.deep)}&row=${d.rowIndex}&values=${encodeURIComponent(JSON.stringify(rowData))}`
+        : `${cfg.asUrl}?action=appendRow&sheet=${encodeURIComponent(SHEETS.deep)}&values=${encodeURIComponent(JSON.stringify(rowData))}`;
+
+      const res = await (await fetch(url, { redirect: 'follow' })).json();
+      if (res.status === 'error') throw new Error(res.message);
+      
+      d.dirty = false; // 保存成功したらフラグ解除
+    }
+
+    notify(`変更のあった ${dirtyRows.length} 件のデータをすべて保存しました ✓`, 'ok');
+    
+    // 💡 すべての変更行の送信が完了した【後】に、全体を1回だけ読み直す
+    await reloadData();
+  } catch (e) {
+    notify('保存エラー: ' + e.message, 'err');
   }
 }
 </script>
