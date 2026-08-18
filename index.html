@@ -153,15 +153,23 @@ tr:hover td{background:#fafbff;cursor:pointer}
 }
 @media(max-width:900px){padding:0; .grid2,.grid3,.grid-1-2,.grid-top-custom,.analysis-grid{grid-template-columns:1fr}.span2{grid-column:auto}}
 @media(max-width:600px){.kpi-row{grid-template-columns:1fr 1fr}}
-/* 深耕営業タブ用スタイル */
-.deep-row td { vertical-align: top; padding: 6px 8px; }
+/* 深耕営業タブ用スタイル拡張 */
+.deep-row td { vertical-align: top; padding: 6px 8px; position: relative; }
 .deep-cell-single { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 34px; min-height: 34px; resize: none; }
 .deep-cell-expanded { white-space: pre-wrap; word-break: break-word; min-height: 90px; height: auto; resize: vertical; }
 .deep-expand-btn { background: none; border: none; cursor: pointer; font-size: 11px; color: #64748b; padding: 2px 6px; border-radius: 4px; transition: 0.15s; }
 .deep-expand-btn:hover { background: #e2e8f0; color: #1e293b; }
 .deep-expand-btn.open { transform: rotate(180deg); }
 
-/* ToDo文字サイズ拡大 (12px → 13.5px) */
+/* 折りたたみ時の編集不可スタイル */
+.modal-input:disabled, .modal-ta:disabled, .modal-input[readonly], .modal-ta[readonly] {
+  background-color: #f8fafc !important;
+  color: #64748b !important;
+  cursor: not-allowed;
+  border-color: #e2e8f0;
+}
+
+/* ToDo文字サイズ */
 .todo-list { display: flex; flex-direction: column; gap: 4px; }
 .todo-item { display: flex; align-items: center; gap: 6px; }
 .todo-item input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; flex-shrink: 0; }
@@ -169,10 +177,10 @@ tr:hover td{background:#fafbff;cursor:pointer}
 .todo-item input[type="text"]:focus { outline: none; border-color: #1e3a8a; background: #fff; }
 .todo-item.done input[type="text"] { text-decoration: line-through; color: #94a3b8; }
 
-/* 複数選択ドロップダウン */
+/* 複数選択ドロップダウン（最前面表示対応） */
 .svc-dropdown-wrap { position: relative; }
 .svc-clicker { border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; background: #fff; min-height: 32px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-.svc-popover { display: none; position: absolute; top: 100%; left: 0; z-index: 1000; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); flex-direction: column; gap: 6px; width: 180px; }
+.svc-popover { display: none; position: absolute; top: 100%; left: 0; z-index: 9999; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); flex-direction: column; gap: 8px; width: 180px; }
 .svc-popover.show { display: flex; }
 
 /* ステータスカラー設定 */
@@ -181,6 +189,25 @@ tr:hover td{background:#fafbff;cursor:pointer}
 .st-sel-提案中 { background: #fef3c7; color: #b45309; }
 .st-sel-完了 { background: #d1fae5; color: #047857; }
 .st-sel-NG { background: #1e293b; color: #ffffff; }
+
+/* 💡【新規】変更保存ボタンの2倍サイズ＆ゆっくり点滅アニメーション */
+.btn-save-large {
+  padding: 12px 28px !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease;
+}
+
+@keyframes slowPulse {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 rgba(37, 99, 235, 0); }
+  50% { opacity: 0.7; transform: scale(1.03); box-shadow: 0 0 16px rgba(37, 99, 235, 0.6); }
+}
+
+.btn-dirty {
+  animation: slowPulse 2.5s infinite ease-in-out;
+  background: #2563eb !important;
+}
 </style>
 </head>
 <body>
@@ -341,16 +368,16 @@ tr:hover td{background:#fafbff;cursor:pointer}
 </div>
 
 <div id="tab-deep" class="tab-pane">
-  <div class="controls" style="justify-content: space-between;">
-    <div style="font-weight:700; font-size:14px; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
+  <div class="controls" style="justify-content: space-between; align-items: center;">
+    <div style="font-weight:700; font-size:15px; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
       💼 深耕営業アカウント管理
     </div>
-    <button class="btn btn-primary btn-sm" onclick="saveDeepData()">💾 変更を保存する</button>
+    <button id="btn-save-deep" class="btn btn-primary btn-save-large" onclick="saveDeepData()">💾 変更を保存する</button>
   </div>
   <div class="card" style="margin-top:10px;">
     <div class="card-body" style="padding:10px;">
       <div class="tbl-wrap" style="overflow-x:auto;">
-        <table id="deep-table" style="width:100%; min-width:1100px;">
+        <table id="deep-table" style="width:100%; min-width:1200px;">
           <thead>
             <tr>
               <th style="width:36px; text-align:center;"></th>
@@ -1077,9 +1104,32 @@ document.addEventListener('mouseout', e => { if (e.target.closest('.pb-row')) pb
 
 loadAllData();
 
-// 定数定義
-const SERVICE_LIST = ['開発', 'インフラ', '組込み', '施工管理', '人材紹介', 'その他'];
+// 💡 パステルカラー配色定義
+const SVC_COLORS = {
+  '開発': { bg: '#fef08a', text: '#854d0e' },     // パステル黄
+  'インフラ': { bg: '#bae6fd', text: '#0369a1' }, // パステル水色
+  '組込み': { bg: '#bbf7d0', text: '#15803d' },   // パステル緑
+  'AI': { bg: '#e9d5ff', text: '#6b21a8' },       // パステル紫
+  '施工管理': { bg: '#fed7aa', text: '#c2410c' }, // パステルオレンジ
+  '人材紹介': { bg: '#fce7f3', text: '#9d174d' }, // パステルピンク
+  'その他': { bg: '#e2e8f0', text: '#475569' }    // パステルグレー
+};
+
+// 💡 サービスリスト（AIを追加）
+const SERVICE_LIST = ['開発', 'インフラ', '組込み', 'AI', '施工管理', '人材紹介', 'その他'];
 const STATUS_LIST = ['未提案', '提案中', '完了', 'NG'];
+
+let isDeepDirty = false;
+
+// 💡 変更があった場合に保存ボタンを点滅させる管理関数
+function setDeepDirty(dirty) {
+  isDeepDirty = dirty;
+  const btn = $('btn-save-deep');
+  if (btn) {
+    if (dirty) btn.classList.add('btn-dirty');
+    else btn.classList.remove('btn-dirty');
+  }
+}
 
 // スプレッドシートの行データをパース
 function processDeep(rows) {
@@ -1113,7 +1163,7 @@ function processDeep(rows) {
   }).filter(Boolean);
 }
 
-// 売上金額の突合（小数点を四捨五入して整数表示）
+// 売上金額の突合（小数点は四捨五入して整数表示）
 function calcCompanyTotalRevenue(companyName) {
   if (!companyName) return 0;
   const targetName = companyName.trim().toLowerCase();
@@ -1127,16 +1177,16 @@ function calcCompanyTotalRevenue(companyName) {
     }
     return sum;
   }, 0);
-  return Math.round(total); // 💡 小数点以下を四捨五入して整数にする
+  return Math.round(total);
 }
 
-// 💡 描画直前に入力中のDOMから最新の値をDB.deepに退避（重複・データ化け防止）
+// 描画前に入力DOMから値を取り込んで同期
 function syncDeepInputsFromDOM() {
   const tbody = $('deep-table-body');
   if (!tbody) return;
 
   DB.deep.forEach((row, idx) => {
-    const rowEl = tbody.children[idx * (row.expanded ? 1 : 1)]; // 各行参照
+    const rowEl = tbody.children[idx];
     if (!rowEl) return;
 
     const companyInp = rowEl.querySelector('input[type="text"][placeholder="企業名"]');
@@ -1153,7 +1203,6 @@ function syncDeepInputsFromDOM() {
       row.strategy = tas[0].value;
     }
 
-    // ToDoの入力状態を同期
     const todoInputs = rowEl.querySelectorAll(`.todo-item input[type="text"]`);
     const todoChecks = rowEl.querySelectorAll(`.todo-item input[type="checkbox"]`);
     if (todoInputs.length > 0) {
@@ -1178,16 +1227,20 @@ function renderDeepTable() {
   tbody.innerHTML = DB.deep.map((row, idx) => {
     const totalRevenue = calcCompanyTotalRevenue(row.company);
     const cellClass = row.expanded ? 'deep-cell-expanded' : 'deep-cell-single';
+    const isDisabled = !row.expanded; // 💡 展開前は編集不可
 
-    // サービス選択チップ
-    const svcBadges = row.services.map(s => `<span class="tag" style="background:#2563eb15;color:#2563eb;">${s}</span>`).join('');
+    // 💡 パステルカラーバッジの生成
+    const svcBadges = row.services.map(s => {
+      const col = SVC_COLORS[s] || { bg: '#e2e8f0', text: '#475569' };
+      return `<span class="tag" style="background:${col.bg}; color:${col.text}; font-weight:700;">${s}</span>`;
+    }).join('');
 
-    // ToDo描画（未展開時は未完了タスクの一番上を大きめ文字で表示）
+    // ToDo描画
     let todoHtml = '';
     if (!row.expanded) {
       const topTodo = row.todos.find(t => !t.done) || row.todos[0];
       if (topTodo) {
-        todoHtml = `<div class="deep-cell-single" style="font-size:13.5px; color:${topTodo.done?'#94a3b8':'#1e293b'}; text-decoration:${topTodo.done?'line-through':'none'};">
+        todoHtml = `<div class="deep-cell-single" style="font-size:13.5px; color:${topTodo.done?'#94a3b8':'#1e293b'}; text-decoration:${topTodo.done?'line-through':'none'}; padding-top:4px;">
           ${topTodo.done ? '☑' : '☐'} ${topTodo.text}
         </div>`;
       } else {
@@ -1211,20 +1264,22 @@ function renderDeepTable() {
           <button class="deep-expand-btn ${row.expanded?'open':''}" onclick="toggleDeepRowExpand(${idx})" title="展開/折りたたみ">▼</button>
         </td>
         <td>
-          <input type="text" class="modal-input" value="${row.company}" onchange="DB.deep[${idx}].company=this.value; renderDeepTable();" placeholder="企業名">
+          <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; setDeepDirty(true);" onchange="renderDeepTable();" placeholder="企業名">
         </td>
         <td class="svc-dropdown-wrap">
           <div class="svc-clicker" onclick="toggleSvcPopover(event, ${idx})">
             ${svcBadges || '<span style="color:#cbd5e1;">選択...</span>'}
           </div>
-          <div class="svc-popover" id="svc-popover-${idx}">
+          <div class="svc-popover" id="svc-popover-${idx}" onclick="event.stopPropagation();">
             ${SERVICE_LIST.map(s => `
-              <label style="font-size:12px; cursor:pointer;"><input type="checkbox" value="${s}" ${row.services.includes(s)?'checked':''} onchange="toggleDeepService(${idx}, '${s}')"> ${s}</label>
+              <label style="font-size:12px; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                <input type="checkbox" value="${s}" ${row.services.includes(s)?'checked':''} onchange="toggleDeepService(${idx}, '${s}')"> ${s}
+              </label>
             `).join('')}
           </div>
         </td>
         <td>
-          <select class="modal-sel st-sel st-sel-${row.status}" onchange="DB.deep[${idx}].status=this.value; this.className='modal-sel st-sel st-sel-'+this.value;">
+          <select class="modal-sel st-sel st-sel-${row.status}" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].status=this.value; this.className='modal-sel st-sel st-sel-'+this.value; setDeepDirty(true);">
             ${STATUS_LIST.map(s => `<option value="${s}" ${row.status===s?'selected':''}>${s}</option>`).join('')}
           </select>
         </td>
@@ -1232,34 +1287,38 @@ function renderDeepTable() {
           ${totalRevenue.toLocaleString()}円
         </td>
         <td>
-          <textarea class="modal-ta ${cellClass}" oninput="DB.deep[${idx}].strategy=this.value" placeholder="戦略を入力">${row.strategy}</textarea>
+          <textarea class="modal-ta ${cellClass}" ${isDisabled?'readonly disabled':''} oninput="DB.deep[${idx}].strategy=this.value; setDeepDirty(true);" placeholder="戦略を入力">${row.strategy}</textarea>
         </td>
         <td>
           ${todoHtml}
         </td>
         <td>
-          <textarea class="modal-ta ${cellClass}" oninput="DB.deep[${idx}].situation=this.value" placeholder="状況を入力">${row.situation}</textarea>
+          <textarea class="modal-ta ${cellClass}" ${isDisabled?'readonly disabled':''} oninput="DB.deep[${idx}].situation=this.value; setDeepDirty(true);" placeholder="状況を入力">${row.situation}</textarea>
         </td>
       </tr>
     `;
   }).join('');
 }
 
-// 展開・折りたたみの切り替え（入力中の値を保持してから描画）
+// 展開・折りたたみ
 function toggleDeepRowExpand(idx) {
   syncDeepInputsFromDOM();
   DB.deep[idx].expanded = !DB.deep[idx].expanded;
   renderDeepTable();
 }
 
-// サービス複数選択ポップオーバー
+// ポップオーバーの表示切替
 function toggleSvcPopover(e, idx) {
   e.stopPropagation();
   const pop = $(`svc-popover-${idx}`);
   document.querySelectorAll('.svc-popover').forEach(p => { if (p !== pop) p.classList.remove('show'); });
   if (pop) pop.classList.toggle('show');
 }
-document.addEventListener('click', () => { document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show')); });
+
+// ドキュメントクリックでポップオーバーを閉じる
+document.addEventListener('click', () => { 
+  document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show')); 
+});
 
 function toggleDeepService(idx, service) {
   syncDeepInputsFromDOM();
@@ -1267,23 +1326,27 @@ function toggleDeepService(idx, service) {
   const pos = svcs.indexOf(service);
   if (pos >= 0) svcs.splice(pos, 1);
   else svcs.push(service);
+  setDeepDirty(true);
   renderDeepTable();
 }
 
-// ToDo操作ロジック
+// ToDo操作
 function toggleDeepTodoDone(rowIdx, todoIdx) {
   syncDeepInputsFromDOM();
   DB.deep[rowIdx].todos[todoIdx].done = !DB.deep[rowIdx].todos[todoIdx].done;
+  setDeepDirty(true);
   renderDeepTable();
 }
 
 function updateDeepTodoText(rowIdx, todoIdx, text) {
   DB.deep[rowIdx].todos[todoIdx].text = text;
+  setDeepDirty(true);
 }
 
 function addDeepTodoItem(rowIdx) {
   syncDeepInputsFromDOM();
   DB.deep[rowIdx].todos.push({ text: '', done: false });
+  setDeepDirty(true);
   renderDeepTable();
 }
 
@@ -1292,6 +1355,7 @@ function handleTodoKeyDown(e, rowIdx, todoIdx) {
     e.preventDefault();
     syncDeepInputsFromDOM();
     DB.deep[rowIdx].todos.splice(todoIdx + 1, 0, { text: '', done: false });
+    setDeepDirty(true);
     renderDeepTable();
     setTimeout(() => {
       const inputs = document.querySelectorAll(`#todo-list-${rowIdx} input[type="text"]`);
@@ -1300,7 +1364,7 @@ function handleTodoKeyDown(e, rowIdx, todoIdx) {
   }
 }
 
-// 新規行追加
+// 行追加
 function addDeepRow() {
   syncDeepInputsFromDOM();
   DB.deep.push({
@@ -1313,10 +1377,11 @@ function addDeepRow() {
     situation: '',
     expanded: true
   });
+  setDeepDirty(true);
   renderDeepTable();
 }
 
-// スプレッドシートへの保存処理
+// 保存処理
 async function saveDeepData() {
   if (!cfg.asUrl) { notify('Apps Script URLを設定してください', 'warn'); return; }
   try {
@@ -1339,6 +1404,7 @@ async function saveDeepData() {
     if (res.status === 'error') throw new Error(res.message);
 
     notify('深耕営業データを保存しました ✓', 'ok');
+    setDeepDirty(false); // 💡 点滅解除
     await reloadData();
   } catch(e) {
     notify('保存エラー: ' + e.message, 'err');
