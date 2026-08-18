@@ -1588,16 +1588,32 @@ function addDeepRow() {
   setDeepDirty(true);
   renderDeepTable();
 }
-  // 💡 単一の行を削除（確認ダイアログ付き）
-function deleteDeepRow(idx) {
+// 💡 単一の行を削除（確認ダイアログ付き ＋ スプレッドシートもクリア）
+async function deleteDeepRow(idx) {
   syncDeepInputsFromDOM();
-  const companyName = DB.deep[idx].company || '（名称未設定）';
+  const d = DB.deep[idx];
+  const companyName = d.company || '（名称未設定）';
   
   if (confirm(`企業名：${companyName} を削除しますがよろしいですか？`)) {
+    if (d.rowIndex && cfg.asUrl) {
+      try {
+        notify(`${companyName} を削除中... 🔄`, 'warn');
+        // 💡 シートの該当行をすべて空文字で上書きしてクリアする
+        const rowData = [['', '', '', '', '', '', '', '']];
+        const url = `${cfg.asUrl}?action=updateRow&sheet=${encodeURIComponent(SHEETS.deep)}&row=${d.rowIndex}&values=${encodeURIComponent(JSON.stringify(rowData))}`;
+        const res = await (await fetch(url, { redirect: 'follow' })).json();
+        if (res.status === 'error') throw new Error(res.message);
+      } catch (e) {
+        notify('削除エラー: ' + e.message, 'err');
+        return;
+      }
+    }
+
     DB.deep.splice(idx, 1);
     setDeepDirty(true);
     renderDeepTable();
     updateBatchDeleteButton();
+    notify(`${companyName} を削除しました ✓`, 'ok');
   }
 }
 
@@ -1637,18 +1653,36 @@ function updateBatchDeleteButton() {
   }
 }
 
-// 💡 チェックされた行を一括削除（確認ダイアログ付き）
-function deleteCheckedDeepRows() {
+// 💡 チェックされた行を一括削除（確認ダイアログ付き ＋ スプレッドシートもクリア）
+async function deleteCheckedDeepRows() {
   syncDeepInputsFromDOM();
   const checkedRows = DB.deep.filter(d => d.checked);
   const count = checkedRows.length;
   if (count === 0) return;
 
   if (confirm(`${count}件のデータを削除しますがよろしいですか？`)) {
+    if (cfg.asUrl) {
+      notify(`${count}件のデータを順番に削除中... 🔄`, 'warn');
+      try {
+        const rowsToDelete = checkedRows.filter(d => d.rowIndex);
+        for (const d of rowsToDelete) {
+          // 💡 チェックされた行を1行ずつ空文字で上書きクリアする
+          const rowData = [['', '', '', '', '', '', '', '']];
+          const url = `${cfg.asUrl}?action=updateRow&sheet=${encodeURIComponent(SHEETS.deep)}&row=${d.rowIndex}&values=${encodeURIComponent(JSON.stringify(rowData))}`;
+          const res = await (await fetch(url, { redirect: 'follow' })).json();
+          if (res.status === 'error') throw new Error(res.message);
+        }
+      } catch (e) {
+        notify('削除エラー: ' + e.message, 'err');
+        return;
+      }
+    }
+
     DB.deep = DB.deep.filter(d => !d.checked);
     setDeepDirty(true);
     renderDeepTable();
     updateBatchDeleteButton();
+    notify(`${count}件のデータを削除しました ✓`, 'ok');
   }
 }
 
