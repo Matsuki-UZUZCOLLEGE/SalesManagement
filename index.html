@@ -153,6 +153,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
 }
 @media(max-width:900px){padding:0; .grid2,.grid3,.grid-1-2,.grid-top-custom,.analysis-grid{grid-template-columns:1fr}.span2{grid-column:auto}}
 @media(max-width:600px){.kpi-row{grid-template-columns:1fr 1fr}}
+
 </style>
 </head>
 <body>
@@ -163,12 +164,14 @@ tr:hover td{background:#fafbff;cursor:pointer}
     <button class="nav-btn active" data-tab="dashboard">📊 ダッシュボード</button>
     <button class="nav-btn" data-tab="deals">📋 商談管理</button>
     <button class="nav-btn" data-tab="analysis">📈 売上分析</button>
+    <button class="nav-btn" data-tab="deep">💼 深耕営業</button>
   </nav>
   <div class="header-right">
     <button class="icon-btn" onclick="reloadData()">🔄 更新</button>
     <button class="icon-btn" onclick="openSettings()">⚙️ 設定</button>
   </div>
 </header>
+
 
 <main>
 <div id="tab-dashboard" class="tab-pane active">
@@ -425,6 +428,40 @@ tr:hover td{background:#fafbff;cursor:pointer}
     <button class="btn btn-primary" onclick="saveSettings()">保存して再読み込み</button>
   </div>
 </div>
+  
+<div id="tab-deep" class="tab-pane">
+  <div class="controls" style="justify-content: space-between;">
+    <div style="font-weight:700; font-size:14px; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
+      💼 深耕営業アカウント管理
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="saveDeepData()">💾 変更を保存する</button>
+  </div>
+  <div class="card" style="margin-top:10px;">
+    <div class="card-body" style="padding:10px;">
+      <div class="tbl-wrap" style="overflow-x:auto;">
+        <table id="deep-table" style="width:100%; min-width:1100px;">
+          <thead>
+            <tr>
+              <th style="width:36px; text-align:center;"></th>
+              <th style="width:160px;">企業名</th>
+              <th style="width:180px;">提供中サービス</th>
+              <th style="width:110px;">ステータス</th>
+              <th style="width:120px; text-align:right;">総売上金額</th>
+              <th style="width:200px;">戦略</th>
+              <th style="width:280px;">ToDo</th>
+              <th>状況</th>
+            </tr>
+          </thead>
+          <tbody id="deep-table-body"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:10px;">
+        <button class="btn btn-ghost" onclick="addDeepRow()" style="width:100%; border:2px dashed #cbd5e1; color:#64748b; font-size:13px; font-weight:700; padding:8px;">＋ 新規行を追加</button>
+      </div>
+    </div>
+  </div>
+</div>
+  
 </div>
 
 <div class="notif" id="notif"></div>
@@ -437,7 +474,7 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbyY4o5cOIGIsuQvcV4C5bzF
 
 const cfg = { ssid: localStorage.getItem('ssid') || DEFAULT_ID, asUrl: GAS_URL };
 
-const SHEETS = { deals: '【営業】商談管理', target: '【共通】目標管理(2026)', revenue: '【参照】売上管理(2026)', actions: '【営業】要因アクション', marketing: '【マーケ】CV/商談', history: '【履歴】サマリー', forecasts: '見込み管理' };
+const SHEETS = { deals: '【営業】商談管理', target: '【共通】目標管理(2026)', revenue: '【参照】売上管理(2026)', actions: '【営業】要因アクション', marketing: '【マーケ】CV/商談', history: '【履歴】サマリー', forecasts: '見込み管理' ,deep:'【営業】深耕営業'};
 const STATUSES = ['商談前','商談済','提案済','クロージング','完了'];
 const ST_CFG = { '商談前':{bg:'#6b7280',text:'#374151'}, '商談済':{bg:'#2563eb',text:'#1d4ed8'}, '提案済':{bg:'#d97706',text:'#92400e'}, 'クロージング':{bg:'#dc2626',text:'#991b1b'}, '完了':{bg:'#059669',text:'#065f46'} };
 const TYPE_COLORS = { 'AI':'#8b5cf6','インフラ':'#0ea5e9','開発':'#f59e0b','組込み':'#10b981','その他':'#94a3b8','法人研修':'#2563eb' };
@@ -574,7 +611,8 @@ async function loadAllData() {
       fetchSheet(SHEETS.marketing), 
       fetchSheet(SHEETS.history), 
       fetchSheet(SHEETS.forecasts),
-      fetchSheet('【参照】売上管理(2025)')
+      fetchSheet('【参照】売上管理(2025)'),
+      fetchSheet(SHEETS.deep) // 💡【追加】8番目
     ]);
     const get = i => res[i].status==='fulfilled' ? res[i].value : null;
     if(!get(0)){ notify('デモデータを表示しています。','warn'); return; }
@@ -585,6 +623,10 @@ async function loadAllData() {
     DB.revenues = [...rev2026, ...rev2025];
     
     DB.marketing = get(4) ? processMarketing(get(4)) : DB.marketing; DB.history = get(5) ? processHistory(get(5)) : []; DB.forecasts = get(6) ? processForecasts(get(6)) : [];
+    
+    // 💡【追加】深耕営業データのパース
+    DB.deep = get(8) ? processDeep(get(8)) : [];
+
     notify('データを読み込みました ✓','ok'); renderAll();
   } catch(e){ notify('読み込みエラー: '+e.message,'warn'); }
 }
@@ -1008,6 +1050,245 @@ document.addEventListener('mousemove', e => { if (pbTooltip.classList.contains('
 document.addEventListener('mouseout', e => { if (e.target.closest('.pb-row')) pbTooltip.classList.remove('show'); });
 
 loadAllData();
+
+// 定数定義
+const SERVICE_LIST = ['開発', 'インフラ', '組込み', '施工管理', '人材紹介', 'その他'];
+const STATUS_LIST = ['未提案', '提案中', '完了', 'NG'];
+
+// スプレッドシートの行データをパース
+function processDeep(rows) {
+  if (!rows || rows.length <= 1) return [];
+  return rows.slice(1).map((r, i) => {
+    // 内容が完全に空の行は除外
+    if (!r.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== '')) return null;
+
+    let todos = [];
+    try {
+      if (r[5]) {
+        // JSON形式かプレーンテキスト（改行区切り）かを判定
+        if (String(r[5]).trim().startsWith('[')) {
+          todos = JSON.parse(r[5]);
+        } else {
+          todos = String(r[5]).split('\n').filter(t => t.trim() !== '').map(t => ({ text: t.replace(/^\[[ x]\]\s*/, ''), done: t.startsWith('[x]') }));
+        }
+      }
+    } catch(e) {
+      todos = String(r[5]||'').split('\n').map(t => ({ text: t, done: false }));
+    }
+
+    return {
+      rowIndex: i + 2,
+      company: r[0] ? String(r[0]).trim() : '',
+      services: r[1] ? String(r[1]).split(',').map(s=>s.trim()).filter(Boolean) : [],
+      status: r[2] ? String(r[2]).trim() : '未提案',
+      strategy: safeStr(r[4]),
+      todos: todos,
+      situation: safeStr(r[6]),
+      expanded: false
+    };
+  }).filter(Boolean);
+}
+
+// 売上分析と同じ企業名突合ロジックで総売上金額を自動算出
+function calcCompanyTotalRevenue(companyName) {
+  if (!companyName) return 0;
+  const targetName = companyName.trim().toLowerCase();
+  return DB.revenues.reduce((sum, r) => {
+    if (r.cat !== '法人研修') return sum;
+    let cName = r.name ? r.name.trim() : '';
+    const match = cName.match(/[（(](.*?)[）)]/);
+    if (match && match[1]) cName = match[1].trim();
+    if (cName.toLowerCase() === targetName || (cName && targetName.includes(cName))) {
+      return sum + (r.amount || 0);
+    }
+    return sum;
+  }, 0);
+}
+
+// 深耕営業テーブルの描画
+function renderDeepTable() {
+  const tbody = $('deep-table-body');
+  if (!tbody) return;
+
+  if (DB.deep.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#9ca3af">データがありません。「＋ 新規行を追加」から登録してください。</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = DB.deep.map((row, idx) => {
+    const totalRevenue = calcCompanyTotalRevenue(row.company);
+    const cellClass = row.expanded ? 'deep-cell-expanded' : 'deep-cell-single';
+
+    // サービス選択チップ
+    const svcBadges = row.services.map(s => `<span class="tag" style="background:#2563eb15;color:#2563eb;">${s}</span>`).join('');
+
+    // ToDo描画ロジック（折りたたみ時は未完了タスクの一番上を表示）
+    let todoHtml = '';
+    if (!row.expanded) {
+      const topTodo = row.todos.find(t => !t.done) || row.todos[0];
+      if (topTodo) {
+        todoHtml = `<div class="deep-cell-single" style="font-size:12px; color:${topTodo.done?'#94a3b8':'#1e293b'}; text-decoration:${topTodo.done?'line-through':'none'};">
+          ${topTodo.done ? '☑' : '☐'} ${topTodo.text}
+        </div>`;
+      } else {
+        todoHtml = `<span style="color:#cbd5e1; font-size:11px;">(ToDoなし)</span>`;
+      }
+    } else {
+      todoHtml = `<div class="todo-list" id="todo-list-${idx}">
+        ${row.todos.map((t, tIdx) => `
+          <div class="todo-item ${t.done?'done':''}">
+            <input type="checkbox" ${t.done?'checked':''} onchange="toggleDeepTodoDone(${idx}, ${tIdx})">
+            <input type="text" value="${t.text}" oninput="updateDeepTodoText(${idx}, ${tIdx}, this.value)" onkeydown="handleTodoKeyDown(event, ${idx}, ${tIdx})" placeholder="タスクを入力（Enterで追加）">
+          </div>
+        `).join('')}
+        <button class="btn btn-ghost btn-sm" style="font-size:10px; padding:2px 6px; align-self:flex-start;" onclick="addDeepTodoItem(${idx})">＋ タスク追加</button>
+      </div>`;
+    }
+
+    return `
+      <tr class="deep-row">
+        <td style="text-align:center;">
+          <button class="deep-expand-btn ${row.expanded?'open':''}" onclick="toggleDeepRowExpand(${idx})" title="展開/折りたたみ">▼</button>
+        </td>
+        <td>
+          <input type="text" class="modal-input" value="${row.company}" onchange="DB.deep[${idx}].company=this.value; renderDeepTable();" placeholder="企業名">
+        </td>
+        <td class="svc-dropdown-wrap">
+          <div class="svc-clicker" onclick="toggleSvcPopover(event, ${idx})">
+            ${svcBadges || '<span style="color:#cbd5e1;">選択...</span>'}
+          </div>
+          <div class="svc-popover" id="svc-popover-${idx}">
+            ${SERVICE_LIST.map(s => `
+              <label style="font-size:12px; cursor:pointer;"><input type="checkbox" value="${s}" ${row.services.includes(s)?'checked':''} onchange="toggleDeepService(${idx}, '${s}')"> ${s}</label>
+            `).join('')}
+          </div>
+        </td>
+        <td>
+          <select class="modal-sel" onchange="DB.deep[${idx}].status=this.value;">
+            ${STATUS_LIST.map(s => `<option ${row.status===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </td>
+        <td style="text-align:right; font-weight:700; color:#1e3a8a; vertical-align:middle;">
+          ${totalRevenue.toLocaleString()}円
+        </td>
+        <td>
+          <textarea class="modal-ta ${cellClass}" style="min-height:32px; height:32px;" oninput="DB.deep[${idx}].strategy=this.value">${row.strategy}</textarea>
+        </td>
+        <td>
+          ${todoHtml}
+        </td>
+        <td>
+          <textarea class="modal-ta ${cellClass}" style="min-height:32px; height:32px;" oninput="DB.deep[${idx}].situation=this.value">${row.situation}</textarea>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// 展開・折りたたみの切り替え
+function toggleDeepRowExpand(idx) {
+  DB.deep[idx].expanded = !DB.deep[idx].expanded;
+  renderDeepTable();
+}
+
+// サービス複数選択ポップオーバー
+function toggleSvcPopover(e, idx) {
+  e.stopPropagation();
+  const pop = $(`svc-popover-${idx}`);
+  document.querySelectorAll('.svc-popover').forEach(p => { if (p !== pop) p.classList.remove('show'); });
+  if (pop) pop.classList.toggle('show');
+}
+document.addEventListener('click', () => { document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show')); });
+
+function toggleDeepService(idx, service) {
+  const svcs = DB.deep[idx].services;
+  const pos = svcs.indexOf(service);
+  if (pos >= 0) svcs.splice(pos, 1);
+  else svcs.push(service);
+  renderDeepTable();
+}
+
+// ToDo操作ロジック
+function toggleDeepTodoDone(rowIdx, todoIdx) {
+  DB.deep[rowIdx].todos[todoIdx].done = !DB.deep[rowIdx].todos[todoIdx].done;
+  renderDeepTable();
+}
+
+function updateDeepTodoText(rowIdx, todoIdx, text) {
+  DB.deep[rowIdx].todos[todoIdx].text = text;
+}
+
+function addDeepTodoItem(rowIdx) {
+  DB.deep[rowIdx].todos.push({ text: '', done: false });
+  renderDeepTable();
+}
+
+function handleTodoKeyDown(e, rowIdx, todoIdx) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    DB.deep[rowIdx].todos.splice(todoIdx + 1, 0, { text: '', done: false });
+    renderDeepTable();
+    // 追加したインプット欄へフォーカス移動
+    setTimeout(() => {
+      const inputs = document.querySelectorAll(`#todo-list-${rowIdx} input[type="text"]`);
+      if (inputs[todoIdx + 1]) inputs[todoIdx + 1].focus();
+    }, 50);
+  }
+}
+
+// 新規行追加
+function addDeepRow() {
+  DB.deep.push({
+    rowIndex: null,
+    company: '',
+    services: [],
+    status: '未提案',
+    strategy: '',
+    todos: [{ text: '', done: false }],
+    situation: '',
+    expanded: true
+  });
+  renderDeepTable();
+}
+
+// スプレッドシートへの保存処理
+async function saveDeepData() {
+  if (!cfg.asUrl) { notify('Apps Script URLを設定してください', 'warn'); return; }
+  try {
+    notify('深耕営業データを保存中... 🔄', 'warn');
+    const validItems = DB.deep.filter(d => d.company.trim() !== '');
+    
+    const payload = validItems.map(d => [
+      d.company.trim(),
+      d.services.join(', '),
+      d.status,
+      '', // D列(総売上金額)はシート側で空欄または数式を維持
+      d.strategy,
+      JSON.stringify(d.todos), // F列(ToDo)はJSON文字列として一括保存
+      d.situation
+    ]);
+
+    const url = `${cfg.asUrl}?action=saveForecasts&sheet=${encodeURIComponent(SHEETS.deep)}&assignee=ALL&values=${encodeURIComponent(JSON.stringify(payload))}`;
+    const res = await (await fetch(url, { redirect: 'follow' })).json();
+    if (res.status === 'error') throw new Error(res.message);
+
+    notify('深耕営業データを保存しました ✓', 'ok');
+    await reloadData();
+  } catch(e) {
+    notify('保存エラー: ' + e.message, 'err');
+  }
+}
+
+// 💡 タブ切り替え時の描画トリガーへ「deep」を追加
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    UI.tab = btn.dataset.tab;
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + UI.tab));
+    if (UI.tab === 'analysis') renderAnalysis();
+    if (UI.tab === 'deep') renderDeepTable(); // 💡 追加
+  });
+});
 </script>
 </body>
 </html>
