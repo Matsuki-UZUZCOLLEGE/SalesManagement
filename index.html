@@ -1463,7 +1463,11 @@ return `
         </td>
         <!-- 💡 右端の削除ボタン -->
         <td style="text-align:center; vertical-align:middle;">
-          <button class="btn-delete-row" onclick="deleteDeepRow(${idx})">削除</button>
+          <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
+            <!-- 💡 onclickを saveDeepRow(${idx}) に変更 -->
+            <button class="btn btn-primary btn-sm" style="font-size:11px; padding:4px 10px; width:100%; border-radius:6px;" onclick="saveDeepRow(${idx})">保存</button>
+            <button class="btn-delete-row" style="width:100%;" onclick="deleteDeepRow(${idx})">削除</button>
+          </div>
         </td>
       </tr>
     `;
