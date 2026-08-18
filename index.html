@@ -154,7 +154,17 @@ tr:hover td{background:#fafbff;cursor:pointer}
 @media(max-width:900px){padding:0; .grid2,.grid3,.grid-1-2,.grid-top-custom,.analysis-grid{grid-template-columns:1fr}.span2{grid-column:auto}}
 @media(max-width:600px){.kpi-row{grid-template-columns:1fr 1fr}}
 /* 深耕営業タブ用スタイル拡張 */
-.deep-row td { vertical-align: top; padding: 6px 8px; position: relative; }
+#tab-deep .controls {
+  position: sticky;
+  top: 54px; /* メインヘッダー(54px)の直下に固定 */
+  z-index: 500;
+  background: #f0f4f8; /* スクロール時に下の要素が透けないよう背景色を指定 */
+  padding: 10px 0;
+  margin-bottom: 10px;
+}
+
+.deep-row { position: relative; z-index: 1; } /* 重なり順制御用 */
+.deep-row td { vertical-align: top; padding: 6px 8px; }
 .deep-cell-single { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 34px; min-height: 34px; resize: none; }
 .deep-cell-expanded { white-space: pre-wrap; word-break: break-word; min-height: 90px; height: auto; resize: vertical; }
 .deep-expand-btn { background: none; border: none; cursor: pointer; font-size: 11px; color: #64748b; padding: 2px 6px; border-radius: 4px; transition: 0.15s; }
@@ -190,7 +200,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
 .st-sel-完了 { background: #d1fae5; color: #047857; }
 .st-sel-NG { background: #1e293b; color: #ffffff; }
 
-/* 💡【新規】変更保存ボタンの2倍サイズ＆ゆっくり点滅アニメーション */
+/* 変更保存ボタンの点滅＆拡大 */
 .btn-save-large {
   padding: 12px 28px !important;
   font-size: 15px !important;
@@ -1307,17 +1317,51 @@ function toggleDeepRowExpand(idx) {
   renderDeepTable();
 }
 
-// ポップオーバーの表示切替
+// 💡 ポップオーバー表示切替（開いた行のz-indexを最前面に引き上げる）
 function toggleSvcPopover(e, idx) {
   e.stopPropagation();
   const pop = $(`svc-popover-${idx}`);
-  document.querySelectorAll('.svc-popover').forEach(p => { if (p !== pop) p.classList.remove('show'); });
-  if (pop) pop.classList.toggle('show');
+  const isShow = pop ? pop.classList.contains('show') : false;
+
+  // すべてのポップオーバーを閉じ、重なり順をリセット
+  document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show'));
+  document.querySelectorAll('.deep-row').forEach(r => r.style.zIndex = '1');
+
+  if (pop && !isShow) {
+    pop.classList.add('show');
+    // 💡 開いた行の z-index を引き上げて「＋新規行を追加」等の前に出す
+    const row = pop.closest('.deep-row');
+    if (row) row.style.zIndex = '1000';
+  }
 }
 
-// ドキュメントクリックでポップオーバーを閉じる
+// 💡 サービス選択切替（全体再描画をせず、バッジ部分のみ部分更新することでポップオーバーを閉じない）
+function toggleDeepService(idx, service) {
+  const svcs = DB.deep[idx].services;
+  const pos = svcs.indexOf(service);
+  if (pos >= 0) svcs.splice(pos, 1);
+  else svcs.push(service);
+  
+  setDeepDirty(true);
+
+  // 💡 バッジ表示のみDOMを動的書き換え（ポップオーバーは開いたまま保持）
+  const rowEl = $('deep-table-body')?.children[idx];
+  if (rowEl) {
+    const clicker = rowEl.querySelector('.svc-clicker');
+    if (clicker) {
+      const svcBadges = svcs.map(s => {
+        const col = SVC_COLORS[s] || { bg: '#e2e8f0', text: '#475569' };
+        return `<span class="tag" style="background:${col.bg}; color:${col.text}; font-weight:700;">${s}</span>`;
+      }).join('');
+      clicker.innerHTML = svcBadges || '<span style="color:#cbd5e1;">選択...</span>';
+    }
+  }
+}
+
+// ドキュメントクリックでポップオーバーを閉じる（重なり順もリセット）
 document.addEventListener('click', () => { 
   document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show')); 
+  document.querySelectorAll('.deep-row').forEach(r => r.style.zIndex = '1');
 });
 
 function toggleDeepService(idx, service) {
