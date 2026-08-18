@@ -1403,9 +1403,10 @@ function renderDeepTable() {
     }
 
     // renderDeepTable() 内の return 部分を更新
-     return `
+return `
       <tr class="deep-row">
         <td style="text-align:center;">
+          <!-- 💡 展開ボタンとチェックボックス -->
           <div class="row-check-wrap">
             <button class="deep-expand-btn ${row.expanded?'open':''}" onclick="toggleDeepRowExpand(${idx})" title="展開/折りたたみ">▼</button>
             <input type="checkbox" class="row-checkbox" ${row.checked?'checked':''} onchange="toggleDeepRowCheck(${idx}, this.checked)">
@@ -1414,7 +1415,7 @@ function renderDeepTable() {
         <td>
           <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; setDeepDirty(true);" onchange="renderDeepTable();" placeholder="企業名">
         </td>
-        <!-- 💡 担当者プルダウン -->
+        <!-- 💡 担当者プルダウン列（ここが抜けていました） -->
         <td>
           <select class="modal-sel assignee-sel" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].assignee=this.value; setDeepDirty(true);">
             <option value="">—</option>
@@ -1450,6 +1451,7 @@ function renderDeepTable() {
         <td>
           <textarea class="modal-ta ${cellClass}" ${isDisabled?'readonly disabled':''} oninput="DB.deep[${idx}].situation=this.value; setDeepDirty(true);" placeholder="状況を入力">${row.situation}</textarea>
         </td>
+        <!-- 💡 右端の削除ボタン -->
         <td style="text-align:center; vertical-align:middle;">
           <button class="btn-delete-row" onclick="deleteDeepRow(${idx})">削除</button>
         </td>
