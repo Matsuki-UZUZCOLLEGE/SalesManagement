@@ -267,6 +267,10 @@ tr:hover td{background:#fafbff;cursor:pointer}
   /* 💡 担当者カラー設定（パステルカラー） */
 .assignee-sel { 
   font-weight: 700; 
+  border-radius: 6px; 
+  padding: 4px 8px; 
+  font-size: 12px; 
+  border: 1px solid #e2e8f0; 
   cursor: pointer; 
   transition: background-color 0.15s; 
 }
@@ -526,12 +530,41 @@ tr:hover td{background:#fafbff;cursor:pointer}
 </div>
 
 <div id="tab-deep" class="tab-pane">
-  <div class="controls" style="justify-content: space-between; align-items: center;">
-    <div style="font-weight:700; font-size:15px; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
+  <div class="controls" style="justify-content: space-between; align-items: center; gap: 10px;">
+    <div style="font-weight:700; font-size:15px; color:#1e3a8a; display:flex; align-items:center; gap:6px; white-space:nowrap;">
       💼 深耕営業アカウント管理
     </div>
-    <div style="display:flex; gap:10px; align-items:center;">
-      <!-- 💡 削除ボタンの横に一括保存ボタンを追加 -->
+    <!-- 💡 新設：絞り込みコントロール群 -->
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; flex:1; max-width:700px; margin:0 10px;">
+      <div class="search-box" style="max-width:200px; min-width:140px;">
+        <span>🔍</span>
+        <input type="text" id="deep-search-input" placeholder="企業名で検索…" oninput="renderDeepTable()">
+      </div>
+      <select class="sel" id="deep-filter-assignee" onchange="renderDeepTable()">
+        <option value="">全担当者</option>
+        <option value="川畑">川畑</option>
+        <option value="林">林</option>
+        <option value="松木">松木</option>
+      </select>
+      <select class="sel" id="deep-filter-service" onchange="renderDeepTable()">
+        <option value="">全サービス</option>
+        <option value="開発">開発</option>
+        <option value="インフラ">インフラ</option>
+        <option value="組込み">組込み</option>
+        <option value="AI">AI</option>
+        <option value="施工管理">施工管理</option>
+        <option value="人材紹介">人材紹介</option>
+        <option value="その他">その他</option>
+      </select>
+      <select class="sel" id="deep-filter-status" onchange="renderDeepTable()">
+        <option value="">全ステータス</option>
+        <option value="未提案">未提案</option>
+        <option value="提案中">提案中</option>
+        <option value="完了">完了</option>
+        <option value="NG">NG</option>
+      </select>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; white-space:nowrap;">
       <button id="btn-save-checked-deep" class="btn-save-checked" onclick="saveCheckedDeepRows()">💾 チェック項目を保存</button>
       <button id="btn-delete-checked-deep" class="btn-delete-checked" onclick="deleteCheckedDeepRows()">🗑️ チェック項目を削除</button>
     </div>
@@ -1394,19 +1427,38 @@ function syncDeepInputsFromDOM() {
 }
 
 // 深耕営業テーブルの描画
+// 深耕営業テーブルの描画（絞り込み機能対応）
 function renderDeepTable() {
   const tbody = $('deep-table-body');
   if (!tbody) return;
 
-  if (DB.deep.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#9ca3af">データがありません。「＋ 新規行を追加」から登録してください。</td></tr>';
+  // 💡 フィルター条件の取得
+  const searchText = ($('deep-search-input')?.value || '').toLowerCase().trim();
+  const filterAssignee = $('deep-filter-assignee')?.value || '';
+  const filterService = $('deep-filter-service')?.value || '';
+  const filterStatus = $('deep-filter-status')?.value || '';
+
+  // 💡 元のインデックス（_origIdx）を保持したままフィルタリング
+  const filteredList = DB.deep
+    .map((row, originalIdx) => ({ ...row, _origIdx: originalIdx }))
+    .filter(row => {
+      if (searchText && !row.company.toLowerCase().includes(searchText)) return false;
+      if (filterAssignee && row.assignee !== filterAssignee) return false;
+      if (filterService && !row.services.includes(filterService)) return false;
+      if (filterStatus && row.status !== filterStatus) return false;
+      return true;
+    });
+
+  if (filteredList.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af">該当するデータがありません。</td></tr>';
     return;
   }
 
-  tbody.innerHTML = DB.deep.map((row, idx) => {
+  tbody.innerHTML = filteredList.map(row => {
+    const idx = row._origIdx; // 💡 各操作関数には元のDB.deep上のインデックス（idx）を渡す
     const totalRevenue = calcCompanyTotalRevenue(row.company);
     const cellClass = row.expanded ? 'deep-cell-expanded' : 'deep-cell-single';
-    const isDisabled = !row.expanded; 
+    const isDisabled = !row.expanded;
 
     const svcBadges = row.services.map(s => {
       const col = SVC_COLORS[s] || { bg: '#e2e8f0', text: '#475569' };
@@ -1444,7 +1496,6 @@ function renderDeepTable() {
           </div>
         </td>
         <td>
-          <!-- 💡 入力時に dirty を true にし、該当行の保存ボタンだけを点滅させる -->
           <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; DB.deep[${idx}].dirty=true; $('btn-save-row-${idx}').classList.add('btn-dirty');" placeholder="企業名">
         </td>
         <td>
@@ -1484,7 +1535,6 @@ function renderDeepTable() {
         </td>
         <td style="text-align:center; vertical-align:middle;">
           <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
-            <!-- 💡 保存ボタンに id を付与。変更があれば btn-dirty クラスを追加 -->
             <button id="btn-save-row-${idx}" class="btn btn-primary btn-sm ${row.dirty ? 'btn-dirty' : ''}" style="font-size:11px; padding:4px 10px; width:100%; border-radius:6px;" onclick="saveDeepRow(${idx})">保存</button>
             <button class="btn-delete-row" style="width:100%;" onclick="deleteDeepRow(${idx})">削除</button>
           </div>
