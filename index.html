@@ -370,6 +370,23 @@ tr:hover td{background:#fafbff;cursor:pointer}
   height: 16px;
   cursor: pointer;
 }
+
+/* 💡 未保存警告テキストの点滅スタイル */
+.unsaved-warning {
+  color: #dc2626;
+  font-weight: 800;
+  font-size: 13px;
+  display: none; /* 初期状態は非表示 */
+  align-items: center;
+  gap: 4px;
+  animation: blinkWarning 1.2s infinite ease-in-out;
+}
+
+@keyframes blinkWarning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
 </style>
 </head>
 <body>
@@ -565,6 +582,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
       </select>
     </div>
     <div style="display:flex; gap:10px; align-items:center; white-space:nowrap;">
+      <span id="deep-unsaved-warning" class="unsaved-warning">⚠️ 未保存の行があります</span>
       <button id="btn-save-checked-deep" class="btn-save-checked" onclick="saveCheckedDeepRows()">💾 チェック項目を保存</button>
       <button id="btn-delete-checked-deep" class="btn-delete-checked" onclick="deleteCheckedDeepRows()">🗑️ チェック項目を削除</button>
     </div>
@@ -1428,17 +1446,34 @@ function syncDeepInputsFromDOM() {
 
 // 深耕営業テーブルの描画
 // 深耕営業テーブルの描画（絞り込み機能対応）
+// 💡 未保存状態の判定と警告表示・ボタン点滅をまとめて更新する関数
+function markDeepDirty(idx) {
+  if (DB.deep[idx]) {
+    DB.deep[idx].dirty = true;
+    $(`btn-save-row-${idx}`)?.classList.add('btn-dirty');
+    updateUnsavedWarning();
+  }
+}
+
+// 💡 未保存行の存在チェックと警告テキスト（右上）の表示切替
+function updateUnsavedWarning() {
+  const el = $('deep-unsaved-warning');
+  if (el) {
+    const hasDirty = DB.deep.some(d => d.dirty);
+    el.style.display = hasDirty ? 'inline-flex' : 'none';
+  }
+}
+
+// 深耕営業テーブルの描画
 function renderDeepTable() {
   const tbody = $('deep-table-body');
   if (!tbody) return;
 
-  // 💡 フィルター条件の取得
   const searchText = ($('deep-search-input')?.value || '').toLowerCase().trim();
   const filterAssignee = $('deep-filter-assignee')?.value || '';
   const filterService = $('deep-filter-service')?.value || '';
   const filterStatus = $('deep-filter-status')?.value || '';
 
-  // 💡 元のインデックス（_origIdx）を保持したままフィルタリング
   const filteredList = DB.deep
     .map((row, originalIdx) => ({ ...row, _origIdx: originalIdx }))
     .filter(row => {
@@ -1451,11 +1486,12 @@ function renderDeepTable() {
 
   if (filteredList.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af">該当するデータがありません。</td></tr>';
+    updateUnsavedWarning();
     return;
   }
 
   tbody.innerHTML = filteredList.map(row => {
-    const idx = row._origIdx; // 💡 各操作関数には元のDB.deep上のインデックス（idx）を渡す
+    const idx = row._origIdx;
     const totalRevenue = calcCompanyTotalRevenue(row.company);
     const cellClass = row.expanded ? 'deep-cell-expanded' : 'deep-cell-single';
     const isDisabled = !row.expanded;
@@ -1496,10 +1532,10 @@ function renderDeepTable() {
           </div>
         </td>
         <td>
-          <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; DB.deep[${idx}].dirty=true; $('btn-save-row-${idx}').classList.add('btn-dirty');" placeholder="企業名">
+          <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; markDeepDirty(${idx});" placeholder="企業名">
         </td>
         <td>
-          <select class="modal-sel assignee-sel assignee-sel-${row.assignee}" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].assignee=this.value; this.className='modal-sel assignee-sel assignee-sel-'+this.value; DB.deep[${idx}].dirty=true; $('btn-save-row-${idx}').classList.add('btn-dirty');">
+          <select class="modal-sel assignee-sel assignee-sel-${row.assignee}" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].assignee=this.value; this.className='modal-sel assignee-sel assignee-sel-'+this.value; markDeepDirty(${idx});">
             <option value="">—</option>
             ${['川畑', '林', '松木'].map(a => `<option value="${a}" ${row.assignee === a ? 'selected' : ''}>${a}</option>`).join('')}
           </select>
@@ -1517,7 +1553,7 @@ function renderDeepTable() {
           </div>
         </td>
         <td>
-          <select class="modal-sel st-sel st-sel-${row.status}" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].status=this.value; this.className='modal-sel st-sel st-sel-'+this.value; DB.deep[${idx}].dirty=true; $('btn-save-row-${idx}').classList.add('btn-dirty');">
+          <select class="modal-sel st-sel st-sel-${row.status}" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].status=this.value; this.className='modal-sel st-sel st-sel-'+this.value; markDeepDirty(${idx});">
             ${STATUS_LIST.map(s => `<option value="${s}" ${row.status===s?'selected':''}>${s}</option>`).join('')}
           </select>
         </td>
@@ -1525,13 +1561,13 @@ function renderDeepTable() {
           ${totalRevenue.toLocaleString()}円
         </td>
         <td>
-          <textarea class="modal-ta ${cellClass}" ${isDisabled?'readonly disabled':''} oninput="DB.deep[${idx}].strategy=this.value; DB.deep[${idx}].dirty=true; $('btn-save-row-${idx}').classList.add('btn-dirty');" placeholder="戦略を入力">${row.strategy}</textarea>
+          <textarea class="modal-ta ${cellClass}" ${isDisabled?'readonly disabled':''} oninput="DB.deep[${idx}].strategy=this.value; markDeepDirty(${idx});" placeholder="戦略を入力">${row.strategy}</textarea>
         </td>
         <td>
           ${todoHtml}
         </td>
         <td>
-          <textarea class="modal-ta ${cellClass}" ${isDisabled?'readonly disabled':''} oninput="DB.deep[${idx}].situation=this.value; DB.deep[${idx}].dirty=true; $('btn-save-row-${idx}').classList.add('btn-dirty');" placeholder="状況を入力">${row.situation}</textarea>
+          <textarea class="modal-ta ${cellClass}" ${isDisabled?'readonly disabled':''} oninput="DB.deep[${idx}].situation=this.value; markDeepDirty(${idx});" placeholder="状況を入力">${row.situation}</textarea>
         </td>
         <td style="text-align:center; vertical-align:middle;">
           <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
@@ -1542,6 +1578,8 @@ function renderDeepTable() {
       </tr>
     `;
   }).join('');
+
+  updateUnsavedWarning();
 }
 
 function toggleDeepRowExpand(idx) {
@@ -1550,14 +1588,12 @@ function toggleDeepRowExpand(idx) {
   renderDeepTable();
 }
 
-// 💡【修正】ポップオーバー表示時に開いた行のz-indexを動的に引き上げる
 function toggleSvcPopover(e, idx) {
   e.stopPropagation();
   const clicker = e.currentTarget;
   const pop = $(`svc-popover-${idx}`);
   const isShow = pop ? pop.classList.contains('show') : false;
 
-  // すべてのポップオーバーを閉じ、行のz-indexをリセット
   document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show'));
   document.querySelectorAll('.deep-row').forEach(r => r.style.zIndex = '');
 
@@ -1567,27 +1603,18 @@ function toggleSvcPopover(e, idx) {
     pop.style.left = rect.left + 'px';
     pop.classList.add('show');
     
-    // 💡 開いた行の z-index を引き上げて「選択...」の枠より手前に表示させる
     const row = clicker.closest('.deep-row');
     if (row) row.style.zIndex = '9999';
   }
 }
 
-// 💡【修正】画面外クリック時にz-indexもリセット
-document.addEventListener('click', (e) => { 
-  if (e.target.closest('.svc-popover') || e.target.closest('.svc-clicker')) return;
-  document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show')); 
-  document.querySelectorAll('.deep-row').forEach(r => r.style.zIndex = '');
-});
-  
 function toggleDeepService(idx, service) {
   const svcs = DB.deep[idx].services;
   const pos = svcs.indexOf(service);
   if (pos >= 0) svcs.splice(pos, 1);
   else svcs.push(service);
   
-  DB.deep[idx].dirty = true;
-  $(`btn-save-row-${idx}`)?.classList.add('btn-dirty'); // 点滅させる
+  markDeepDirty(idx);
 
   const rowEl = $('deep-table-body')?.children[idx];
   if (rowEl) {
@@ -1605,26 +1632,27 @@ function toggleDeepService(idx, service) {
 document.addEventListener('click', (e) => { 
   if (e.target.closest('.svc-popover') || e.target.closest('.svc-clicker')) return;
   document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show')); 
+  document.querySelectorAll('.deep-row').forEach(r => r.style.zIndex = '');
 });
+
 window.addEventListener('scroll', () => { document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show')); }, true);
 
 function toggleDeepTodoDone(rowIdx, todoIdx) {
   syncDeepInputsFromDOM();
   DB.deep[rowIdx].todos[todoIdx].done = !DB.deep[rowIdx].todos[todoIdx].done;
-  DB.deep[rowIdx].dirty = true;
+  markDeepDirty(rowIdx);
   renderDeepTable();
 }
 
 function updateDeepTodoText(rowIdx, todoIdx, text) {
   DB.deep[rowIdx].todos[todoIdx].text = text;
-  DB.deep[rowIdx].dirty = true;
-  $(`btn-save-row-${rowIdx}`)?.classList.add('btn-dirty');
+  markDeepDirty(rowIdx);
 }
 
 function addDeepTodoItem(rowIdx) {
   syncDeepInputsFromDOM();
   DB.deep[rowIdx].todos.push({ text: '', done: false });
-  DB.deep[rowIdx].dirty = true;
+  markDeepDirty(rowIdx);
   renderDeepTable();
 }
 
@@ -1633,7 +1661,7 @@ function handleTodoKeyDown(e, rowIdx, todoIdx) {
     e.preventDefault();
     syncDeepInputsFromDOM();
     DB.deep[rowIdx].todos.splice(todoIdx + 1, 0, { text: '', done: false });
-    DB.deep[rowIdx].dirty = true;
+    markDeepDirty(rowIdx);
     renderDeepTable();
     setTimeout(() => {
       const inputs = document.querySelectorAll(`#todo-list-${rowIdx} input[type="text"]`);
@@ -1655,7 +1683,7 @@ function addDeepRow() {
     situation: '',
     expanded: true,
     checked: false,
-    dirty: true // 💡 新規追加時は最初から未保存（点滅）状態
+    dirty: true
   });
   renderDeepTable();
 }
@@ -1694,7 +1722,6 @@ function toggleAllDeepRows(checked) {
   updateBatchButtons();
 }
 
-// 💡 削除ボタン・保存ボタンの両方の表示制御を行う関数に改修
 function updateBatchButtons() {
   const btnDel = $('btn-delete-checked-deep');
   const btnSave = $('btn-save-checked-deep');
@@ -1738,7 +1765,6 @@ async function deleteCheckedDeepRows() {
   }
 }
 
-// 💡【修正】行の個別保存処理（点滅解除を確実に行う）
 async function saveDeepRow(idx) {
   if (!cfg.asUrl) { notify('Apps Script URLを設定してください', 'warn'); return; }
   
@@ -1759,14 +1785,14 @@ async function saveDeepRow(idx) {
     const res = await (await fetch(url, { redirect: 'follow' })).json();
     if (res.status === 'error') throw new Error(res.message);
 
+    d.dirty = false;
+    $(`btn-save-row-${idx}`)?.classList.remove('btn-dirty');
+
     notify(`${d.company} を保存しました ✓`, 'ok');
-    
-    // スプレッドシートから最新データを再読み込み（描画も自動で行われます）
     await reloadData(); 
   } catch(e) { notify('保存エラー: ' + e.message, 'err'); }
 }
 
-// 💡 チェックされた行の一括保存処理（新規作成）
 async function saveCheckedDeepRows() {
   syncDeepInputsFromDOM();
   const checkedRows = DB.deep.filter(d => d.checked);
@@ -1810,6 +1836,14 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (UI.tab === 'deep') renderDeepTable();
   });
 });
+  // 💡 未保存行の存在チェックと警告表示の切替
+function updateUnsavedWarning() {
+  const el = $('deep-unsaved-warning');
+  if (el) {
+    const hasDirty = DB.deep.some(d => d.dirty);
+    el.style.display = hasDirty ? 'inline-flex' : 'none';
+  }
+}
 </script>
 </body>
 </html>
