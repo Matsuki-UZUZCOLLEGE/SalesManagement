@@ -239,10 +239,11 @@ tr:hover td{background:#fafbff;cursor:pointer}
   gap: 4px; 
 }
 
+/* 💡【修正】最前面表示対応CSS */
 .svc-popover { 
   display: none; 
-  position: fixed; /* テーブル枠を無視して画面最前面に浮遊表示 */
-  z-index: 99999; 
+  position: fixed; 
+  z-index: 100000 !important; /* 確実に最前面に表示 */
   background: #fff; 
   border: 1px solid #cbd5e1; 
   border-radius: 8px; 
@@ -867,7 +868,13 @@ function useDemoData() {
   DB.forecasts = [{rowIndex:2, company:'見込み企業A（AI研修）', assignee:'川畑', revenue:500000, quantity:2, note:'7月導入予定'}];
 }
 
-function renderAll() { renderDashboard(); renderDeals(); renderAnalysis(); }
+// 💡【修正】renderAll関数に renderDeepTable() を追加
+function renderAll() { 
+  renderDashboard(); 
+  renderDeals(); 
+  renderAnalysis(); 
+  renderDeepTable(); // 👈 これを追加
+}
 function getPastSnapshot() { if (!DB.history || DB.history.length === 0) return null; const today = new Date().toDateString(); for (let i = DB.history.length - 1; i >= 0; i--) { if (DB.history[i].date && DB.history[i].date.toDateString() !== today && DB.history[i].date < new Date()) return DB.history[i]; } return DB.history[DB.history.length - 1] || null; }
 function getDiffStr(cur, past, isMonetary = false) { if (!past) return ''; const diff = cur - past; if (diff === 0) return ' <span style="color:#94a3b8; font-size:12px; margin-left:6px;">(±0)</span>'; return ` <span style="color:${diff > 0 ? '#059669':'#dc2626'}; font-size:12px; font-weight:700; margin-left:6px;">(${diff > 0 ? '+':''}${isMonetary ? Math.round(diff).toLocaleString() : diff})</span>`; }
 
@@ -1492,22 +1499,36 @@ function toggleDeepRowExpand(idx) {
   renderDeepTable();
 }
 
+// 💡【修正】ポップオーバー表示時に開いた行のz-indexを動的に引き上げる
 function toggleSvcPopover(e, idx) {
   e.stopPropagation();
   const clicker = e.currentTarget;
   const pop = $(`svc-popover-${idx}`);
   const isShow = pop ? pop.classList.contains('show') : false;
 
+  // すべてのポップオーバーを閉じ、行のz-indexをリセット
   document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show'));
+  document.querySelectorAll('.deep-row').forEach(r => r.style.zIndex = '');
 
   if (pop && !isShow) {
     const rect = clicker.getBoundingClientRect();
     pop.style.top = (rect.bottom + 4) + 'px';
     pop.style.left = rect.left + 'px';
     pop.classList.add('show');
+    
+    // 💡 開いた行の z-index を引き上げて「選択...」の枠より手前に表示させる
+    const row = clicker.closest('.deep-row');
+    if (row) row.style.zIndex = '9999';
   }
 }
 
+// 💡【修正】画面外クリック時にz-indexもリセット
+document.addEventListener('click', (e) => { 
+  if (e.target.closest('.svc-popover') || e.target.closest('.svc-clicker')) return;
+  document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show')); 
+  document.querySelectorAll('.deep-row').forEach(r => r.style.zIndex = '');
+});
+  
 function toggleDeepService(idx, service) {
   const svcs = DB.deep[idx].services;
   const pos = svcs.indexOf(service);
@@ -1666,7 +1687,7 @@ async function deleteCheckedDeepRows() {
   }
 }
 
-// 💡 行の個別保存処理
+// 💡【修正】行の個別保存処理（点滅解除を確実に行う）
 async function saveDeepRow(idx) {
   if (!cfg.asUrl) { notify('Apps Script URLを設定してください', 'warn'); return; }
   
@@ -1687,9 +1708,13 @@ async function saveDeepRow(idx) {
     const res = await (await fetch(url, { redirect: 'follow' })).json();
     if (res.status === 'error') throw new Error(res.message);
 
+    // 💡 フラグを倒して点滅クラスを即時削除
+    d.dirty = false;
+    $(`btn-save-row-${idx}`)?.classList.remove('btn-dirty');
+
     notify(`${d.company} を保存しました ✓`, 'ok');
-    d.dirty = false; // 点滅解除
     await reloadData(); 
+    renderDeepTable(); // 再描画
   } catch(e) { notify('保存エラー: ' + e.message, 'err'); }
 }
 
