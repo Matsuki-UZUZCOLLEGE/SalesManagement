@@ -263,6 +263,16 @@ tr:hover td{background:#fafbff;cursor:pointer}
 .st-sel-完了 { background: #d1fae5; color: #047857; }
 .st-sel-NG { background: #1e293b; color: #ffffff; }
 
+  /* 💡 担当者カラー設定（パステルカラー） */
+.assignee-sel { 
+  font-weight: 700; 
+  cursor: pointer; 
+  transition: background-color 0.15s; 
+}
+.assignee-sel-川畑 { background-color: #bae6fd !important; color: #0369a1 !important; border-color: #7dd3fc !important; }
+.assignee-sel-松木 { background-color: #fef08a !important; color: #854d0e !important; border-color: #fde047 !important; }
+.assignee-sel-林 { background-color: #bbf7d0 !important; color: #15803d !important; border-color: #86efac !important; }
+
 /* 変更保存ボタンの点滅＆拡大 */
 .btn-save-large {
   padding: 12px 28px !important;
@@ -1415,9 +1425,9 @@ return `
         <td>
           <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; setDeepDirty(true);" onchange="renderDeepTable();" placeholder="企業名">
         </td>
-        <!-- 💡 担当者プルダウン列（ここが抜けていました） -->
+        <!-- 💡 担当者プルダウン列（色分け対応＆展開不要で操作可能） -->
         <td>
-          <select class="modal-sel assignee-sel" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].assignee=this.value; setDeepDirty(true);">
+          <select class="modal-sel assignee-sel assignee-sel-${row.assignee}" onchange="DB.deep[${idx}].assignee=this.value; this.className='modal-sel assignee-sel assignee-sel-'+this.value; setDeepDirty(true);">
             <option value="">—</option>
             ${['川畑', '林', '松木'].map(a => `<option value="${a}" ${row.assignee === a ? 'selected' : ''}>${a}</option>`).join('')}
           </select>
