@@ -518,6 +518,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
                 <input type="checkbox" id="check-all-deep" class="row-checkbox" onchange="toggleAllDeepRows(this.checked)" title="全選択/全解除">
               </th>
               <th style="width:240px;">企業名</th>
+              <th style="width:100px;">担当者</th>
               <th style="width:180px;">提供中サービス</th>
               <th style="width:110px;">ステータス</th>
               <th style="width:120px; text-align:right;">総売上金額</th>
@@ -1276,27 +1277,28 @@ function processDeep(rows) {
 
     let todos = [];
     try {
-      if (r[5]) {
-        if (String(r[5]).trim().startsWith('[')) {
-          todos = JSON.parse(r[5]);
+      if (r[6]) { // 💡 ToDoがF列からG列(インデックス6)に移動
+        if (String(r[6]).trim().startsWith('[')) {
+          todos = JSON.parse(r[6]);
         } else {
-          todos = String(r[5]).split('\n').filter(t => t.trim() !== '').map(t => ({ text: t.replace(/^\[[ x]\]\s*/, ''), done: t.startsWith('[x]') }));
+          todos = String(r[6]).split('\n').filter(t => t.trim() !== '').map(t => ({ text: t.replace(/^\[[ x]\]\s*/, ''), done: t.startsWith('[x]') }));
         }
       }
     } catch(e) {
-      todos = String(r[5]||'').split('\n').map(t => ({ text: t, done: false }));
+      todos = String(r[6]||'').split('\n').map(t => ({ text: t, done: false }));
     }
 
     return {
       rowIndex: i + 2,
       company: r[0] ? String(r[0]).trim() : '',
-      services: r[1] ? String(r[1]).split(',').map(s=>s.trim()).filter(Boolean) : [],
-      status: r[2] ? String(r[2]).trim() : '未提案',
-      strategy: safeStr(r[4]),
+      assignee: r[1] ? String(r[1]).trim() : '', // 💡 担当者をB列(インデックス1)から取得
+      services: r[2] ? String(r[2]).split(',').map(s=>s.trim()).filter(Boolean) : [], // 以降+1
+      status: r[3] ? String(r[3]).trim() : '未提案',
+      strategy: safeStr(r[5]),
       todos: todos,
-      situation: safeStr(r[6]),
+      situation: safeStr(r[7]),
       expanded: false,
-      checked: false // 💡 チェック状態を初期化
+      checked: false
     };
   }).filter(Boolean);
 }
@@ -1329,6 +1331,10 @@ function syncDeepInputsFromDOM() {
 
     const companyInp = rowEl.querySelector('input[type="text"][placeholder="企業名"]');
     if (companyInp) row.company = companyInp.value;
+
+    // 💡 担当者の値を取り込む
+    const assigneeSel = rowEl.querySelector('select.assignee-sel');
+    if (assigneeSel) row.assignee = assigneeSel.value;
 
     const statusSel = rowEl.querySelector('select.st-sel');
     if (statusSel) row.status = statusSel.value;
@@ -1397,7 +1403,7 @@ function renderDeepTable() {
     }
 
     // renderDeepTable() 内の return 部分を更新
-    return `
+     return `
       <tr class="deep-row">
         <td style="text-align:center;">
           <div class="row-check-wrap">
@@ -1407,6 +1413,13 @@ function renderDeepTable() {
         </td>
         <td>
           <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; setDeepDirty(true);" onchange="renderDeepTable();" placeholder="企業名">
+        </td>
+        <!-- 💡 担当者プルダウン -->
+        <td>
+          <select class="modal-sel assignee-sel" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].assignee=this.value; setDeepDirty(true);">
+            <option value="">—</option>
+            ${['川畑', '林', '松木'].map(a => `<option value="${a}" ${row.assignee === a ? 'selected' : ''}>${a}</option>`).join('')}
+          </select>
         </td>
         <td class="svc-dropdown-wrap">
           <div class="svc-clicker" onclick="toggleSvcPopover(event, ${idx})">
@@ -1547,17 +1560,18 @@ function addDeepRow() {
   DB.deep.push({
     rowIndex: null,
     company: '',
+    assignee: '', // 💡 担当者の初期値
     services: [],
     status: '未提案',
     strategy: '',
     todos: [{ text: '', done: false }],
     situation: '',
-    expanded: true
+    expanded: true,
+    checked: false
   });
   setDeepDirty(true);
   renderDeepTable();
 }
-
   // 💡 単一の行を削除（確認ダイアログ付き）
 function deleteDeepRow(idx) {
   syncDeepInputsFromDOM();
@@ -1630,14 +1644,16 @@ async function saveDeepData() {
     notify('深耕営業データを保存中... 🔄', 'warn');
     const validItems = DB.deep.filter(d => d.company.trim() !== '');
     
+    // 💡 スプレッドシートの A列〜H列 に合わせた配列構造
     const payload = validItems.map(d => [
       d.company.trim(),
-      d.services.join(', '),
-      d.status,
-      '', 
-      d.strategy,
-      JSON.stringify(d.todos), 
-      d.situation
+      d.assignee,          // B列: 担当者
+      d.services.join(', '), // C列: サービス
+      d.status,            // D列: ステータス
+      '',                  // E列: 総売上金額 (シート側数式維持)
+      d.strategy,          // F列: 戦略
+      JSON.stringify(d.todos), // G列: ToDo
+      d.situation          // H列: 状況
     ]);
 
     const url = `${cfg.asUrl}?action=saveForecasts&sheet=${encodeURIComponent(SHEETS.deep)}&assignee=ALL&values=${encodeURIComponent(JSON.stringify(payload))}`;
@@ -1645,7 +1661,7 @@ async function saveDeepData() {
     if (res.status === 'error') throw new Error(res.message);
 
     notify('深耕営業データを保存しました ✓', 'ok');
-    setDeepDirty(false); // 💡 点滅解除
+    setDeepDirty(false); 
     await reloadData();
   } catch(e) {
     notify('保存エラー: ' + e.message, 'err');
