@@ -272,29 +272,26 @@ tr:hover td{background:#fafbff;cursor:pointer}
   transition: all 0.2s ease;
 }
 
-/* 💡【改善】「変更を保存する」ボタンの超強力な赤〜オレンジ点滅＆拡大アニメーション */
-@keyframes intensePulse {
-  0% {
-    background-color: #dc2626 !important; /* 警告の赤 */
-    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.8);
+/* 💡【修正】モノトーン＆シャドウベースの落ち着いた点滅・拡大効果 */
+@keyframes monochromeShadowPulse {
+  0%, 100% {
+    background-color: #1e293b !important; /* ダークスレートグレー */
+    border-color: #94a3b8 !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
     transform: scale(1);
   }
   50% {
-    background-color: #ea580c !important; /* 鮮やかなオレンジ */
-    box-shadow: 0 0 22px 8px rgba(234, 88, 12, 0.75); /* 強烈なネオン発光 */
-    transform: scale(1.08); /* 大きく拡大 */
-  }
-  100% {
-    background-color: #dc2626 !important;
-    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
-    transform: scale(1);
+    background-color: #0f172a !important; /* より深いブラック */
+    border-color: #ffffff !important;
+    /* 重厚感のある黒い影 ＋ ほんのり浮かび上がる白いグロー効果 */
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(255, 255, 255, 0.35);
+    transform: scale(1.04); /* 目立ちつつも上品な微拡大 */
   }
 }
 
 .btn-dirty {
-  animation: intensePulse 1.2s infinite ease-in-out !important; /* テンポよく点滅 */
+  animation: monochromeShadowPulse 2.0s infinite ease-in-out !important; /* 2.0秒周期でゆったり点滅 */
   color: #ffffff !important;
-  border: 2px solid #ffffff !important;
 }
 </style>
 </head>
