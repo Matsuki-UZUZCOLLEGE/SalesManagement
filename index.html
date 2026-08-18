@@ -153,7 +153,34 @@ tr:hover td{background:#fafbff;cursor:pointer}
 }
 @media(max-width:900px){padding:0; .grid2,.grid3,.grid-1-2,.grid-top-custom,.analysis-grid{grid-template-columns:1fr}.span2{grid-column:auto}}
 @media(max-width:600px){.kpi-row{grid-template-columns:1fr 1fr}}
+/* 深耕営業タブ用スタイル */
+.deep-row td { vertical-align: top; padding: 6px 8px; }
+.deep-cell-single { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 34px; min-height: 34px; resize: none; }
+.deep-cell-expanded { white-space: pre-wrap; word-break: break-word; min-height: 90px; height: auto; resize: vertical; }
+.deep-expand-btn { background: none; border: none; cursor: pointer; font-size: 11px; color: #64748b; padding: 2px 6px; border-radius: 4px; transition: 0.15s; }
+.deep-expand-btn:hover { background: #e2e8f0; color: #1e293b; }
+.deep-expand-btn.open { transform: rotate(180deg); }
 
+/* ToDo文字サイズ拡大 (12px → 13.5px) */
+.todo-list { display: flex; flex-direction: column; gap: 4px; }
+.todo-item { display: flex; align-items: center; gap: 6px; }
+.todo-item input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; flex-shrink: 0; }
+.todo-item input[type="text"] { border: 1px solid transparent; border-radius: 4px; padding: 3px 6px; font-size: 13.5px; width: 100%; background: transparent; }
+.todo-item input[type="text"]:focus { outline: none; border-color: #1e3a8a; background: #fff; }
+.todo-item.done input[type="text"] { text-decoration: line-through; color: #94a3b8; }
+
+/* 複数選択ドロップダウン */
+.svc-dropdown-wrap { position: relative; }
+.svc-clicker { border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; background: #fff; min-height: 32px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.svc-popover { display: none; position: absolute; top: 100%; left: 0; z-index: 1000; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); flex-direction: column; gap: 6px; width: 180px; }
+.svc-popover.show { display: flex; }
+
+/* ステータスカラー設定 */
+.st-sel { font-weight: 700; border-radius: 6px; padding: 4px 8px; border: 1px solid #e2e8f0; font-size: 12px; cursor: pointer; }
+.st-sel-未提案 { background: #f1f5f9; color: #475569; }
+.st-sel-提案中 { background: #fef3c7; color: #b45309; }
+.st-sel-完了 { background: #d1fae5; color: #047857; }
+.st-sel-NG { background: #1e293b; color: #ffffff; }
 </style>
 </head>
 <body>
@@ -327,7 +354,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
           <thead>
             <tr>
               <th style="width:36px; text-align:center;"></th>
-              <th style="width:160px;">企業名</th>
+              <th style="width:240px;">企業名</th>
               <th style="width:180px;">提供中サービス</th>
               <th style="width:110px;">ステータス</th>
               <th style="width:120px; text-align:right;">総売上金額</th>
@@ -1058,13 +1085,11 @@ const STATUS_LIST = ['未提案', '提案中', '完了', 'NG'];
 function processDeep(rows) {
   if (!rows || rows.length <= 1) return [];
   return rows.slice(1).map((r, i) => {
-    // 内容が完全に空の行は除外
     if (!r.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== '')) return null;
 
     let todos = [];
     try {
       if (r[5]) {
-        // JSON形式かプレーンテキスト（改行区切り）かを判定
         if (String(r[5]).trim().startsWith('[')) {
           todos = JSON.parse(r[5]);
         } else {
@@ -1088,11 +1113,11 @@ function processDeep(rows) {
   }).filter(Boolean);
 }
 
-// 売上分析と同じ企業名突合ロジックで総売上金額を自動算出
+// 売上金額の突合（小数点を四捨五入して整数表示）
 function calcCompanyTotalRevenue(companyName) {
   if (!companyName) return 0;
   const targetName = companyName.trim().toLowerCase();
-  return DB.revenues.reduce((sum, r) => {
+  const total = DB.revenues.reduce((sum, r) => {
     if (r.cat !== '法人研修') return sum;
     let cName = r.name ? r.name.trim() : '';
     const match = cName.match(/[（(](.*?)[）)]/);
@@ -1102,6 +1127,42 @@ function calcCompanyTotalRevenue(companyName) {
     }
     return sum;
   }, 0);
+  return Math.round(total); // 💡 小数点以下を四捨五入して整数にする
+}
+
+// 💡 描画直前に入力中のDOMから最新の値をDB.deepに退避（重複・データ化け防止）
+function syncDeepInputsFromDOM() {
+  const tbody = $('deep-table-body');
+  if (!tbody) return;
+
+  DB.deep.forEach((row, idx) => {
+    const rowEl = tbody.children[idx * (row.expanded ? 1 : 1)]; // 各行参照
+    if (!rowEl) return;
+
+    const companyInp = rowEl.querySelector('input[type="text"][placeholder="企業名"]');
+    if (companyInp) row.company = companyInp.value;
+
+    const statusSel = rowEl.querySelector('select.st-sel');
+    if (statusSel) row.status = statusSel.value;
+
+    const tas = rowEl.querySelectorAll('textarea');
+    if (tas.length >= 2) {
+      row.strategy = tas[0].value;
+      row.situation = tas[1].value;
+    } else if (tas.length === 1) {
+      row.strategy = tas[0].value;
+    }
+
+    // ToDoの入力状態を同期
+    const todoInputs = rowEl.querySelectorAll(`.todo-item input[type="text"]`);
+    const todoChecks = rowEl.querySelectorAll(`.todo-item input[type="checkbox"]`);
+    if (todoInputs.length > 0) {
+      row.todos = Array.from(todoInputs).map((inp, tIdx) => ({
+        text: inp.value,
+        done: todoChecks[tIdx] ? todoChecks[tIdx].checked : false
+      }));
+    }
+  });
 }
 
 // 深耕営業テーブルの描画
@@ -1121,16 +1182,16 @@ function renderDeepTable() {
     // サービス選択チップ
     const svcBadges = row.services.map(s => `<span class="tag" style="background:#2563eb15;color:#2563eb;">${s}</span>`).join('');
 
-    // ToDo描画ロジック（折りたたみ時は未完了タスクの一番上を表示）
+    // ToDo描画（未展開時は未完了タスクの一番上を大きめ文字で表示）
     let todoHtml = '';
     if (!row.expanded) {
       const topTodo = row.todos.find(t => !t.done) || row.todos[0];
       if (topTodo) {
-        todoHtml = `<div class="deep-cell-single" style="font-size:12px; color:${topTodo.done?'#94a3b8':'#1e293b'}; text-decoration:${topTodo.done?'line-through':'none'};">
+        todoHtml = `<div class="deep-cell-single" style="font-size:13.5px; color:${topTodo.done?'#94a3b8':'#1e293b'}; text-decoration:${topTodo.done?'line-through':'none'};">
           ${topTodo.done ? '☑' : '☐'} ${topTodo.text}
         </div>`;
       } else {
-        todoHtml = `<span style="color:#cbd5e1; font-size:11px;">(ToDoなし)</span>`;
+        todoHtml = `<span style="color:#cbd5e1; font-size:12px;">(ToDoなし)</span>`;
       }
     } else {
       todoHtml = `<div class="todo-list" id="todo-list-${idx}">
@@ -1140,7 +1201,7 @@ function renderDeepTable() {
             <input type="text" value="${t.text}" oninput="updateDeepTodoText(${idx}, ${tIdx}, this.value)" onkeydown="handleTodoKeyDown(event, ${idx}, ${tIdx})" placeholder="タスクを入力（Enterで追加）">
           </div>
         `).join('')}
-        <button class="btn btn-ghost btn-sm" style="font-size:10px; padding:2px 6px; align-self:flex-start;" onclick="addDeepTodoItem(${idx})">＋ タスク追加</button>
+        <button class="btn btn-ghost btn-sm" style="font-size:11px; padding:2px 8px; align-self:flex-start; margin-top:2px;" onclick="addDeepTodoItem(${idx})">＋ タスク追加</button>
       </div>`;
     }
 
@@ -1163,29 +1224,30 @@ function renderDeepTable() {
           </div>
         </td>
         <td>
-          <select class="modal-sel" onchange="DB.deep[${idx}].status=this.value;">
-            ${STATUS_LIST.map(s => `<option ${row.status===s?'selected':''}>${s}</option>`).join('')}
+          <select class="modal-sel st-sel st-sel-${row.status}" onchange="DB.deep[${idx}].status=this.value; this.className='modal-sel st-sel st-sel-'+this.value;">
+            ${STATUS_LIST.map(s => `<option value="${s}" ${row.status===s?'selected':''}>${s}</option>`).join('')}
           </select>
         </td>
-        <td style="text-align:right; font-weight:700; color:#1e3a8a; vertical-align:middle;">
+        <td style="text-align:right; font-weight:700; color:#1e3a8a; vertical-align:middle; font-size:13px;">
           ${totalRevenue.toLocaleString()}円
         </td>
         <td>
-          <textarea class="modal-ta ${cellClass}" style="min-height:32px; height:32px;" oninput="DB.deep[${idx}].strategy=this.value">${row.strategy}</textarea>
+          <textarea class="modal-ta ${cellClass}" oninput="DB.deep[${idx}].strategy=this.value" placeholder="戦略を入力">${row.strategy}</textarea>
         </td>
         <td>
           ${todoHtml}
         </td>
         <td>
-          <textarea class="modal-ta ${cellClass}" style="min-height:32px; height:32px;" oninput="DB.deep[${idx}].situation=this.value">${row.situation}</textarea>
+          <textarea class="modal-ta ${cellClass}" oninput="DB.deep[${idx}].situation=this.value" placeholder="状況を入力">${row.situation}</textarea>
         </td>
       </tr>
     `;
   }).join('');
 }
 
-// 展開・折りたたみの切り替え
+// 展開・折りたたみの切り替え（入力中の値を保持してから描画）
 function toggleDeepRowExpand(idx) {
+  syncDeepInputsFromDOM();
   DB.deep[idx].expanded = !DB.deep[idx].expanded;
   renderDeepTable();
 }
@@ -1200,6 +1262,7 @@ function toggleSvcPopover(e, idx) {
 document.addEventListener('click', () => { document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show')); });
 
 function toggleDeepService(idx, service) {
+  syncDeepInputsFromDOM();
   const svcs = DB.deep[idx].services;
   const pos = svcs.indexOf(service);
   if (pos >= 0) svcs.splice(pos, 1);
@@ -1209,6 +1272,7 @@ function toggleDeepService(idx, service) {
 
 // ToDo操作ロジック
 function toggleDeepTodoDone(rowIdx, todoIdx) {
+  syncDeepInputsFromDOM();
   DB.deep[rowIdx].todos[todoIdx].done = !DB.deep[rowIdx].todos[todoIdx].done;
   renderDeepTable();
 }
@@ -1218,6 +1282,7 @@ function updateDeepTodoText(rowIdx, todoIdx, text) {
 }
 
 function addDeepTodoItem(rowIdx) {
+  syncDeepInputsFromDOM();
   DB.deep[rowIdx].todos.push({ text: '', done: false });
   renderDeepTable();
 }
@@ -1225,9 +1290,9 @@ function addDeepTodoItem(rowIdx) {
 function handleTodoKeyDown(e, rowIdx, todoIdx) {
   if (e.key === 'Enter') {
     e.preventDefault();
+    syncDeepInputsFromDOM();
     DB.deep[rowIdx].todos.splice(todoIdx + 1, 0, { text: '', done: false });
     renderDeepTable();
-    // 追加したインプット欄へフォーカス移動
     setTimeout(() => {
       const inputs = document.querySelectorAll(`#todo-list-${rowIdx} input[type="text"]`);
       if (inputs[todoIdx + 1]) inputs[todoIdx + 1].focus();
@@ -1237,6 +1302,7 @@ function handleTodoKeyDown(e, rowIdx, todoIdx) {
 
 // 新規行追加
 function addDeepRow() {
+  syncDeepInputsFromDOM();
   DB.deep.push({
     rowIndex: null,
     company: '',
@@ -1254,6 +1320,7 @@ function addDeepRow() {
 async function saveDeepData() {
   if (!cfg.asUrl) { notify('Apps Script URLを設定してください', 'warn'); return; }
   try {
+    syncDeepInputsFromDOM();
     notify('深耕営業データを保存中... 🔄', 'warn');
     const validItems = DB.deep.filter(d => d.company.trim() !== '');
     
@@ -1261,9 +1328,9 @@ async function saveDeepData() {
       d.company.trim(),
       d.services.join(', '),
       d.status,
-      '', // D列(総売上金額)はシート側で空欄または数式を維持
+      '', 
       d.strategy,
-      JSON.stringify(d.todos), // F列(ToDo)はJSON文字列として一括保存
+      JSON.stringify(d.todos), 
       d.situation
     ]);
 
