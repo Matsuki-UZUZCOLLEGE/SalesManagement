@@ -188,19 +188,31 @@ tr:hover td{background:#fafbff;cursor:pointer}
 .todo-item.done input[type="text"] { text-decoration: line-through; color: #94a3b8; }
 
 /* 複数選択ドロップダウン（最前面表示対応） */
-/* 💡【書き換え】最前面表示対応のポップオーバーCSS */
+/* 💡【書き換え】最前面表示＆枠外はみ出し対応CSS */
 .svc-dropdown-wrap { position: relative; }
-.svc-clicker { border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; background: #fff; min-height: 32px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.svc-clicker { 
+  border: 1px solid #e2e8f0; 
+  border-radius: 6px; 
+  padding: 4px 8px; 
+  font-size: 12px; 
+  cursor: pointer; 
+  background: #fff; 
+  min-height: 32px; 
+  display: flex; 
+  align-items: center; 
+  flex-wrap: wrap; 
+  gap: 4px; 
+}
 
 .svc-popover { 
   display: none; 
-  position: fixed; /* テーブル枠を飛び越えて最前面に固定表示 */
+  position: fixed; /* テーブル枠を無視して画面最前面に浮遊表示 */
   z-index: 99999; 
   background: #fff; 
   border: 1px solid #cbd5e1; 
   border-radius: 8px; 
   padding: 10px; 
-  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25); 
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); 
   flex-direction: column; 
   gap: 8px; 
   width: 180px; 
@@ -1298,8 +1310,8 @@ function renderDeepTable() {
           </div>
           <div class="svc-popover" id="svc-popover-${idx}" onclick="event.stopPropagation();">
             ${SERVICE_LIST.map(s => `
-              <label style="font-size:12px; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="event.stopPropagation();">
-                <input type="checkbox" value="${s}" ${row.services.includes(s)?'checked':''} onclick="event.stopPropagation();" onchange="toggleDeepService(event, ${idx}, '${s}')"> ${s}
+              <label style="font-size:12px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+                <input type="checkbox" value="${s}" ${row.services.includes(s)?'checked':''} onchange="toggleDeepService(${idx}, '${s}')"> ${s}
               </label>
             `).join('')}
           </div>
@@ -1333,7 +1345,7 @@ function toggleDeepRowExpand(idx) {
   renderDeepTable();
 }
 
-// 💡【書き換え】ポップオーバーの位置計算＆最前面表示処理
+// 💡 ポップオーバーの表示位置を絶対座標(fixed)で最前面に計算
 function toggleSvcPopover(e, idx) {
   e.stopPropagation();
   const clicker = e.currentTarget;
@@ -1344,7 +1356,6 @@ function toggleSvcPopover(e, idx) {
   document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show'));
 
   if (pop && !isShow) {
-    // クリックされたボタンの位置を取得し、画面上の絶対位置（fixed）で配置
     const rect = clicker.getBoundingClientRect();
     pop.style.top = (rect.bottom + 4) + 'px';
     pop.style.left = rect.left + 'px';
@@ -1352,18 +1363,20 @@ function toggleSvcPopover(e, idx) {
   }
 }
 
-// 💡【書き換え】サービス選択処理（イベント伝播を止め、メニューを閉じずにバッジのみ更新）
-function toggleDeepService(e, idx, service) {
-  if (e) e.stopPropagation(); // 画面全体へのクリック伝播をストップ
-  
+// 💡 サービス選択処理（二重発火を防ぎ、バッジ表示とデータを確実に同期）
+function toggleDeepService(idx, service) {
   const svcs = DB.deep[idx].services;
   const pos = svcs.indexOf(service);
-  if (pos >= 0) svcs.splice(pos, 1);
-  else svcs.push(service);
   
-  setDeepDirty(true);
+  if (pos >= 0) {
+    svcs.splice(pos, 1); // 選択解除
+  } else {
+    svcs.push(service); // 選択追加
+  }
+  
+  setDeepDirty(true); // 変更検知（保存ボタン点滅）
 
-  // 全体再描画はせず、該当行のバッジ（表示部分）のみ動的に書き換え
+  // ポップオーバーを開いたまま、枠内のバッジ表示のみ部分更新
   const rowEl = $('deep-table-body')?.children[idx];
   if (rowEl) {
     const clicker = rowEl.querySelector('.svc-clicker');
@@ -1377,14 +1390,15 @@ function toggleDeepService(e, idx, service) {
   }
 }
 
-// 💡【書き換え】画面外クリック時の判定処理
+// 💡 画面外クリックまたはテーブルスクロール時にポップオーバーを閉じる
 document.addEventListener('click', (e) => { 
-  // ポップオーバー内部や選択ボタンをクリックした場合は閉じない
-  if (e.target.closest('.svc-popover') || e.target.closest('.svc-clicker')) {
-    return;
-  }
+  if (e.target.closest('.svc-popover') || e.target.closest('.svc-clicker')) return;
   document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show')); 
 });
+
+window.addEventListener('scroll', () => {
+  document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show'));
+}, true);
 
 function toggleDeepService(idx, service) {
   syncDeepInputsFromDOM();
