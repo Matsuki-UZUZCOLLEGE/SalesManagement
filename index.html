@@ -515,7 +515,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
     </div>
     <div style="display:flex; gap:10px; align-items:center;">
       <button id="btn-delete-checked-deep" class="btn-delete-checked" onclick="deleteCheckedDeepRows()">🗑️ チェック項目を削除</button>
-      <button id="btn-save-deep" class="btn btn-primary btn-save-large" onclick="saveDeepData()">💾 変更を保存する</button>
+      <!-- 💡 全体保存ボタン（変更を保存する）は事故防止のため削除しました -->
     </div>
   </div>
   <div class="card" style="margin-top:10px;">
@@ -1649,32 +1649,45 @@ function deleteCheckedDeepRows() {
 }
 
 // 保存処理
-async function saveDeepData() {
+// 💡 行ごとにピンポイントで保存・追加を行う専用関数（同時編集の事故防止）
+async function saveDeepRow(idx) {
   if (!cfg.asUrl) { notify('Apps Script URLを設定してください', 'warn'); return; }
-  try {
-    syncDeepInputsFromDOM();
-    notify('深耕営業データを保存中... 🔄', 'warn');
-    const validItems = DB.deep.filter(d => d.company.trim() !== '');
-    
-    // 💡 スプレッドシートの A列〜H列 に合わせた配列構造
-    const payload = validItems.map(d => [
-      d.company.trim(),
-      d.assignee,          // B列: 担当者
-      d.services.join(', '), // C列: サービス
-      d.status,            // D列: ステータス
-      '',                  // E列: 総売上金額 (シート側数式維持)
-      d.strategy,          // F列: 戦略
-      JSON.stringify(d.todos), // G列: ToDo
-      d.situation          // H列: 状況
-    ]);
+  
+  syncDeepInputsFromDOM(); // 入力中の値をデータに同期
+  const d = DB.deep[idx];
+  if (!d.company.trim()) { notify('企業名を入力してください', 'err'); return; }
 
-    const url = `${cfg.asUrl}?action=saveForecasts&sheet=${encodeURIComponent(SHEETS.deep)}&assignee=ALL&values=${encodeURIComponent(JSON.stringify(payload))}`;
+  try {
+    notify(`企業名：${d.company} を保存中... 🔄`, 'warn');
+    
+    // スプレッドシートの A列〜H列 に合わせた1行分のデータ配列
+    const rowData = [[
+      d.company.trim(),
+      d.assignee || '',
+      d.services.join(', '),
+      d.status,
+      '', // E列: 総売上金額 (シート側数式維持)
+      d.strategy || '',
+      JSON.stringify(d.todos || []),
+      d.situation || ''
+    ]];
+
+    let url;
+    if (d.rowIndex) {
+      // 💡 rowIndexが存在する場合＝既存行の「ピンポイント更新（updateRow）」
+      url = `${cfg.asUrl}?action=updateRow&sheet=${encodeURIComponent(SHEETS.deep)}&row=${d.rowIndex}&values=${encodeURIComponent(JSON.stringify(rowData))}`;
+    } else {
+      // 💡 rowIndexが無い場合＝新規行の「末尾追加（appendRow）」
+      url = `${cfg.asUrl}?action=appendRow&sheet=${encodeURIComponent(SHEETS.deep)}&values=${encodeURIComponent(JSON.stringify(rowData))}`;
+    }
+
     const res = await (await fetch(url, { redirect: 'follow' })).json();
     if (res.status === 'error') throw new Error(res.message);
 
-    notify('深耕営業データを保存しました ✓', 'ok');
-    setDeepDirty(false); 
-    await reloadData();
+    notify(`${d.company} を保存しました ✓`, 'ok');
+    
+    // 保存後、最新データを読み込み直す（他の人が編集したデータもここで画面に反映される）
+    await reloadData(); 
   } catch(e) {
     notify('保存エラー: ' + e.message, 'err');
   }
