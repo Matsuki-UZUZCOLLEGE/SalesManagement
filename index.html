@@ -1507,16 +1507,6 @@ window.addEventListener('scroll', () => {
   document.querySelectorAll('.svc-popover').forEach(p => p.classList.remove('show'));
 }, true);
 
-function toggleDeepService(idx, service) {
-  syncDeepInputsFromDOM();
-  const svcs = DB.deep[idx].services;
-  const pos = svcs.indexOf(service);
-  if (pos >= 0) svcs.splice(pos, 1);
-  else svcs.push(service);
-  setDeepDirty(true);
-  renderDeepTable();
-}
-
 // ToDo操作
 function toggleDeepTodoDone(rowIdx, todoIdx) {
   syncDeepInputsFromDOM();
