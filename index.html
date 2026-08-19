@@ -1410,14 +1410,18 @@ function calcCompanyTotalRevenue(companyName) {
   return Math.round(total);
 }
 
-// DOMからの同期
+// 💡【修正版】ソートや検索で並び順が変わっていても安全にDOMの入力値を同期する関数
 function syncDeepInputsFromDOM() {
   const tbody = $('deep-table-body');
   if (!tbody) return;
 
-  DB.deep.forEach((row, idx) => {
-    const rowEl = tbody.children[idx];
-    if (!rowEl) return;
+  // 画面上に描画されている各行（tr）から data-idx を読み取って正確に同期
+  Array.from(tbody.children).forEach(rowEl => {
+    const idxStr = rowEl.getAttribute('data-idx');
+    if (idxStr === null) return;
+    const idx = parseInt(idxStr, 10);
+    const row = DB.deep[idx];
+    if (!row) return;
 
     const companyInp = rowEl.querySelector('input[type="text"][placeholder="企業名"]');
     if (companyInp) row.company = companyInp.value;
