@@ -1488,12 +1488,10 @@ function calcCompanyTotalRevenue(companyName) {
   return Math.round(total);
 }
 
-// 💡 ソート・フィルター時のデータ破壊を防ぐため無効化
-function syncDeepInputsFromDOM() {
-  // 処理不要（各入力フォームの oninput / onchange でリアルタイム同期済みのため）
-}
+// DOM同期用のダミー関数（無効化）
+function syncDeepInputsFromDOM() {}
 
-// 未保存状態の更新・警告ボタン点滅
+// 未保存状態の判定と警告表示・ボタン更新
 function markDeepDirty(idx) {
   if (DB.deep[idx]) {
     DB.deep[idx].dirty = true;
@@ -1501,7 +1499,7 @@ function markDeepDirty(idx) {
   }
 }
 
-// 未保存行チェックと保存ボタン表示制御（単一定義に一本化）
+// 未保存行のチェックと右上保存ボタンの表示制御
 function updateUnsavedWarning() {
   const btnSave = $('btn-save-dirty-deep');
   const dirtyRows = DB.deep.filter(d => d && d.dirty);
@@ -1647,7 +1645,7 @@ function renderDeepTable() {
           <textarea class="modal-ta ${cellClass}" ${isDisabled?'readonly disabled':''} oninput="DB.deep[${idx}].situation=this.value; markDeepDirty(${idx});" placeholder="状況を入力">${row.situation}</textarea>
         </td>
         <td style="text-align:center; vertical-align:middle;">
-          <button class="btn-delete-row" style="width:100%;" onclick="deleteDeepRow(${idx})">削除</button>
+           <button class="btn-delete-row" style="width:100%;" onclick="deleteDeepRow(${idx})">削除</button>
         </td>
       </tr>
     `;
@@ -1757,22 +1755,15 @@ function addDeepRow() {
   renderDeepTable();
 }
 
+// 行の削除処理（配列から除外し、最新の全データをGASエンドポイントへ送信して同期）
 async function deleteDeepRow(idx) {
   const d = DB.deep[idx];
   const companyName = d.company || '（名称未設定）';
   if (confirm(`企業名：${companyName} を削除しますがよろしいですか？`)) {
-    if (d.rowIndex && cfg.asUrl) {
-      try {
-        notify(`${companyName} を削除中... 🔄`, 'warn');
-        const rowData = [['', '', '', '', '', '', '', '']];
-        const url = `${cfg.asUrl}?action=updateRow&sheet=${encodeURIComponent(SHEETS.deep)}&row=${d.rowIndex}&values=${encodeURIComponent(JSON.stringify(rowData))}`;
-        const res = await (await fetch(url, { redirect: 'follow' })).json();
-        if (res.status === 'error') throw new Error(res.message);
-      } catch (e) { notify('削除エラー: ' + e.message, 'err'); return; }
-    }
     DB.deep.splice(idx, 1);
     renderDeepTable();
     updateBatchButtons();
+    await saveAllDirtyDeepRows(true); // スプレッドシート側にも反映
     notify(`${companyName} を削除しました ✓`, 'ok');
   }
 }
@@ -1802,75 +1793,68 @@ function updateBatchButtons() {
   if (checkAll) checkAll.checked = DB.deep.length > 0 && DB.deep.every(d => d.checked);
 }
 
+// チェック項目の一括削除
 async function deleteCheckedDeepRows() {
   const checkedRows = DB.deep.filter(d => d.checked);
   const count = checkedRows.length;
   if (count === 0) return;
 
   if (confirm(`${count}件のデータを削除しますがよろしいですか？`)) {
-    if (cfg.asUrl) {
-      notify(`${count}件のデータを順番に削除中... 🔄`, 'warn');
-      try {
-        const rowsToDelete = checkedRows.filter(d => d.rowIndex);
-        for (const d of rowsToDelete) {
-          const rowData = [['', '', '', '', '', '', '', '']];
-          const url = `${cfg.asUrl}?action=updateRow&sheet=${encodeURIComponent(SHEETS.deep)}&row=${d.rowIndex}&values=${encodeURIComponent(JSON.stringify(rowData))}`;
-          const res = await (await fetch(url, { redirect: 'follow' })).json();
-          if (res.status === 'error') throw new Error(res.message);
-        }
-      } catch (e) { notify('削除エラー: ' + e.message, 'err'); return; }
-    }
     DB.deep = DB.deep.filter(d => !d.checked);
     renderDeepTable();
     updateBatchButtons();
+    await saveAllDirtyDeepRows(true); // スプレッドシート側にも反映
     notify(`${count}件のデータを削除しました ✓`, 'ok');
   }
 }
 
-// 一括保存処理（変更のあった dirty な行のみ1件ずつGASに送信）
-async function saveAllDirtyDeepRows() {
+// 全データの同期・一括保存（GAS標準の saveForecasts/assignee=ALL エンドポイント使用）
+async function saveAllDirtyDeepRows(forceSave = false) {
   if (!cfg.asUrl) { notify('Apps Script URLを設定してください', 'warn'); return; }
   
-  const dirtyRows = DB.deep.filter(d => d.dirty);
-  if (dirtyRows.length === 0) return;
-
-  const invalid = dirtyRows.find(d => !d.company.trim());
-  if (invalid) { 
-    notify('変更された項目の中に企業名が空のデータがあります。企業名を入力してください。', 'err'); 
-    return; 
-  }
+  const validItems = DB.deep.filter(d => d && d.company && d.company.trim() !== '');
+  
+  if (!forceSave && !DB.deep.some(d => d.dirty)) return;
 
   try {
-    notify(`変更のあった ${dirtyRows.length} 件のデータを保存中... 🔄`, 'warn');
+    notify('深耕営業データをスプレッドシートに同期中... 🔄', 'warn');
     
-    for (const d of dirtyRows) {
-      const rowData = [[
-        d.company.trim(),
-        d.assignee || '',
-        d.services.join(', '),
-        d.status,
-        '',
-        d.strategy || '',
-        JSON.stringify(d.todos || []),
-        d.situation || ''
-      ]];
+    const payload = validItems.map(d => [
+      d.company.trim(),
+      d.assignee || '',
+      d.services ? d.services.join(', ') : '',
+      d.status || '未提案',
+      '', // 総売上金額（シート側の計算式を保持）
+      d.strategy || '',
+      JSON.stringify(d.todos || []),
+      d.situation || ''
+    ]);
 
-      let url = d.rowIndex 
-        ? `${cfg.asUrl}?action=updateRow&sheet=${encodeURIComponent(SHEETS.deep)}&row=${d.rowIndex}&values=${encodeURIComponent(JSON.stringify(rowData))}`
-        : `${cfg.asUrl}?action=appendRow&sheet=${encodeURIComponent(SHEETS.deep)}&values=${encodeURIComponent(JSON.stringify(rowData))}`;
+    const url = `${cfg.asUrl}?action=saveForecasts&sheet=${encodeURIComponent(SHEETS.deep)}&assignee=ALL&values=${encodeURIComponent(JSON.stringify(payload))}`;
 
-      const res = await (await fetch(url, { redirect: 'follow' })).json();
-      if (res.status === 'error') throw new Error(res.message);
-      
-      d.dirty = false;
-    }
+    const res = await (await fetch(url, { redirect: 'follow' })).json();
+    if (res.status === 'error') throw new Error(res.message);
 
-    notify(`変更のあった ${dirtyRows.length} 件のデータをすべて保存しました ✓`, 'ok');
+    DB.deep.forEach(d => d.dirty = false);
+    updateUnsavedWarning();
+
+    notify('深耕営業データを正常に保存しました ✓', 'ok');
     await reloadData();
   } catch (e) {
     notify('保存エラー: ' + e.message, 'err');
   }
 }
+
+// タブ切り替えトリガー
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    UI.tab = btn.dataset.tab;
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + UI.tab));
+    if (UI.tab === 'analysis') renderAnalysis();
+    if (UI.tab === 'deep') renderDeepTable();
+  });
+});
 </script>
 </body>
 </html>
