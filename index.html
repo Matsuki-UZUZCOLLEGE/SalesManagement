@@ -1488,8 +1488,10 @@ function calcCompanyTotalRevenue(companyName) {
   return Math.round(total);
 }
 
-// DOM同期処理の空関数化（互換性維持のため残す）
-function syncDeepInputsFromDOM() {}
+// 💡 ソート・フィルター時のデータ破壊を防ぐため無効化
+function syncDeepInputsFromDOM() {
+  // 処理不要（各入力フォームの oninput / onchange でリアルタイム同期済みのため）
+}
 
 // 未保存状態の更新・警告ボタン点滅
 function markDeepDirty(idx) {
