@@ -386,7 +386,36 @@ tr:hover td{background:#fafbff;cursor:pointer}
   0%, 100% { opacity: 1; }
   50% { opacity: 0.25; }
 }
+/* 💡【修正】深耕営業テーブルのスクロール固定・ヘッダー固定対応 */
+#tab-deep .tbl-wrap {
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
 
+#deep-table th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f8fafc;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+/* 💡 ソート可能なヘッダー列のスタイル */
+.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s;
+}
+.th-sortable:hover {
+  background-color: #f1f5f9 !important;
+}
+.sort-icon {
+  font-size: 10px;
+  margin-left: 4px;
+  display: inline-block;
+}
 </style>
 </head>
 <body>
@@ -593,25 +622,43 @@ tr:hover td{background:#fafbff;cursor:pointer}
   <div class="card" style="margin-top:10px;">
     <div class="card-body" style="padding:10px;">
       <div class="tbl-wrap" style="overflow-x:auto;">
-        <table id="deep-table" style="width:100%; min-width:1250px;">
-          <thead>
-            <tr>
-              <th style="width:65px; text-align:center;">
-                <input type="checkbox" id="check-all-deep" class="row-checkbox" onchange="toggleAllDeepRows(this.checked)" title="全選択/全解除">
-              </th>
-              <th style="width:240px;">企業名</th>
-              <th style="width:100px;">担当者</th>
-              <th style="width:180px;">提供中サービス</th>
-              <th style="width:110px;">ステータス</th>
-              <th style="width:120px; text-align:right;">総売上金額</th>
-              <th style="width:200px;">戦略</th>
-              <th style="width:280px;">ToDo</th>
-              <th>状況</th>
-              <th style="width:65px; text-align:center;">操作</th>
-            </tr>
-          </thead>
-          <tbody id="deep-table-body"></tbody>
-        </table>
+<table id="deep-table" style="width:100%; min-width:1250px;">
+  <thead>
+    <tr>
+      <!-- 💡 1. 一括削除チェックボックスの位置を下行（td）とピッタリ合わせる -->
+      <th style="width:65px; text-align:center;">
+        <div class="row-check-wrap">
+          <span style="width:28px; display:inline-block;"></span><!-- 展開ボタン分の余白ダミー -->
+          <input type="checkbox" id="check-all-deep" class="row-checkbox" onchange="toggleAllDeepRows(this.checked)" title="全選択/全解除">
+        </div>
+      </th>
+
+      <!-- 💡 2. 企業名：並び替え対応 -->
+      <th style="width:240px;" class="th-sortable" onclick="sortDeepTable('company')">
+        企業名 <span id="sort-icon-company" class="sort-icon">⇅</span>
+      </th>
+
+      <th style="width:100px;">担当者</th>
+      <th style="width:180px;">提供中サービス</th>
+
+      <!-- 💡 3. ステータス：並び替え対応 -->
+      <th style="width:110px;" class="th-sortable" onclick="sortDeepTable('status')">
+        ステータス <span id="sort-icon-status" class="sort-icon">⇅</span>
+      </th>
+
+      <!-- 💡 4. 総売上金額：並び替え対応 -->
+      <th style="width:120px; text-align:right;" class="th-sortable" onclick="sortDeepTable('revenue')">
+        総売上金額 <span id="sort-icon-revenue" class="sort-icon">⇅</span>
+      </th>
+
+      <th style="width:200px;">戦略</th>
+      <th style="width:280px;">ToDo</th>
+      <th>状況</th>
+      <th style="width:65px; text-align:center;">操作</th>
+    </tr>
+  </thead>
+  <tbody id="deep-table-body"></tbody>
+</table>
       </div>
       <div style="margin-top:10px;">
         <button class="btn btn-ghost" onclick="addDeepRow()" style="width:100%; border:2px dashed #cbd5e1; color:#64748b; font-size:13px; font-weight:700; padding:8px;">＋ 新規行を追加</button>
@@ -1348,6 +1395,37 @@ const STATUS_LIST = ['未提案', '提案中', '完了', 'NG'];
 
 let isDeepDirty = false;
 
+  // 💡 並び替え用変数
+let deepSortKey = '';   // 'company' | 'status' | 'revenue'
+let deepSortOrder = 'asc'; // 'asc' | 'desc'
+
+// 💡 ヘッダーのソート切替関数
+function sortDeepTable(key) {
+  if (deepSortKey === key) {
+    deepSortOrder = deepSortOrder === 'asc' ? 'desc' : 'asc';
+  } else {
+    deepSortKey = key;
+    deepSortOrder = 'asc';
+  }
+  renderDeepTable();
+}
+
+// ソート矢印アイコンの描画更新
+function updateSortIcons() {
+  const keys = ['company', 'status', 'revenue'];
+  keys.forEach(k => {
+    const el = $(`sort-icon-${k}`);
+    if (!el) return;
+    if (deepSortKey !== k) {
+      el.innerHTML = '<span style="opacity:0.3;">⇅</span>';
+    } else {
+      el.innerHTML = deepSortOrder === 'asc' 
+        ? '<span style="color:#2563eb; font-weight:800;">▲</span>' 
+        : '<span style="color:#2563eb; font-weight:800;">▼</span>';
+    }
+  });
+}
+  
 // 💡 変更があった場合に保存ボタンを点滅させる管理関数
 function setDeepDirty(dirty) {
   isDeepDirty = dirty;
@@ -1477,7 +1555,8 @@ function renderDeepTable() {
   const filterService = $('deep-filter-service')?.value || '';
   const filterStatus = $('deep-filter-status')?.value || '';
 
-  const filteredList = DB.deep
+  // 1. フィルター処理
+  let filteredList = DB.deep
     .map((row, originalIdx) => ({ ...row, _origIdx: originalIdx }))
     .filter(row => {
       if (searchText && !row.company.toLowerCase().includes(searchText)) return false;
@@ -1486,6 +1565,33 @@ function renderDeepTable() {
       if (filterStatus && row.status !== filterStatus) return false;
       return true;
     });
+
+  // 💡 2. 並び替え（ソート）処理の追加
+  if (deepSortKey) {
+    const statusPriority = { '未提案': 1, '提案中': 2, '完了': 3, 'NG': 4 };
+    filteredList.sort((a, b) => {
+      let valA, valB;
+      if (deepSortKey === 'company') {
+        valA = a.company || '';
+        valB = b.company || '';
+        return deepSortOrder === 'asc' 
+          ? valA.localeCompare(valB, 'ja') 
+          : valB.localeCompare(valA, 'ja');
+      } else if (deepSortKey === 'status') {
+        valA = statusPriority[a.status] || 99;
+        valB = statusPriority[b.status] || 99;
+        return deepSortOrder === 'asc' ? valA - valB : valB - valA;
+      } else if (deepSortKey === 'revenue') {
+        valA = calcCompanyTotalRevenue(a.company);
+        valB = calcCompanyTotalRevenue(b.company);
+        return deepSortOrder === 'asc' ? valA - valB : valB - valA;
+      }
+      return 0;
+    });
+  }
+
+  // ソート用アイコン表示を更新
+  updateSortIcons();
 
   if (filteredList.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af">該当するデータがありません。</td></tr>';
@@ -1538,7 +1644,7 @@ function renderDeepTable() {
           <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; markDeepDirty(${idx});" placeholder="企業名">
         </td>
         <td>
-          <select class="modal-sel assignee-sel assignee-sel-${row.assignee}" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].assignee=this.value; this.className='modal-sel assignee-sel assignee-sel-'+this.value; markDeepDirty(${idx});">
+          <select class="modal-sel assignee-sel assignee-sel-${row.assignee}" onchange="DB.deep[${idx}].assignee=this.value; this.className='modal-sel assignee-sel assignee-sel-'+this.value; markDeepDirty(${idx});">
             <option value="">—</option>
             ${['川畑', '林', '松木'].map(a => `<option value="${a}" ${row.assignee === a ? 'selected' : ''}>${a}</option>`).join('')}
           </select>
@@ -1556,7 +1662,7 @@ function renderDeepTable() {
           </div>
         </td>
         <td>
-          <select class="modal-sel st-sel st-sel-${row.status}" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].status=this.value; this.className='modal-sel st-sel st-sel-'+this.value; markDeepDirty(${idx});">
+          <select class="modal-sel st-sel st-sel-${row.status}" onchange="DB.deep[${idx}].status=this.value; this.className='modal-sel st-sel st-sel-'+this.value; markDeepDirty(${idx});">
             ${STATUS_LIST.map(s => `<option value="${s}" ${row.status===s?'selected':''}>${s}</option>`).join('')}
           </select>
         </td>
