@@ -163,7 +163,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
   margin-bottom: 10px;
 }
 
-/* 💡【修正】全見出しセル（操作列含む）の完全固定＆透過防止 */
+/* 💡【追加・修正】テーブルコンテナの縦スクロール化と見出し行(th)の追従固定 */
 #tab-deep .tbl-wrap {
   max-height: calc(100vh - 210px);
   overflow: auto;
@@ -178,7 +178,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
   position: sticky;
   top: 0;
   z-index: 20;
-  background-color: #f8fafc !important; /* スクロール時に下層が透けないよう背景色を強制適用 */
+  background: #f8fafc;
   border-bottom: 2px solid #e2e8f0;
 }
 
