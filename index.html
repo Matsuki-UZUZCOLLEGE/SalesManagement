@@ -163,12 +163,23 @@ tr:hover td{background:#fafbff;cursor:pointer}
   margin-bottom: 10px;
 }
 
-/* 💡【追加】深耕営業テーブルの見出し固定 */
+/* 💡【追加・修正】テーブルコンテナの縦スクロール化と見出し行(th)の追従固定 */
+#tab-deep .tbl-wrap {
+  max-height: calc(100vh - 210px);
+  overflow: auto;
+}
+
+#deep-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
 #deep-table th {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   background: #f8fafc;
+  border-bottom: 2px solid #e2e8f0;
 }
 
 .deep-row { position: relative; z-index: 1; } /* 重なり順制御用 */
@@ -604,10 +615,10 @@ tr:hover td{background:#fafbff;cursor:pointer}
         <table id="deep-table" style="width:100%; min-width:1250px;">
           <thead>
             <tr>
-              <!-- 💡【修正】幅を調整し、展開ボタン相当の空領域(28px)を入れて下の行とチェックボックス位置を同期 -->
+              <!-- 💡【修正】列数を保ったまま展開ボタン分の幅(28px)を確保し、下のチェックボックスと位置を完全一致 -->
               <th style="width:80px; text-align:center;">
                 <div class="row-check-wrap">
-                  <span style="width:28px; display:inline-block;"></span>
+                  <span style="width:28px; display:inline-block; flex-shrink:0;"></span>
                   <input type="checkbox" id="check-all-deep" class="row-checkbox" onchange="toggleAllDeepRows(this.checked)" title="全選択/全解除">
                 </div>
               </th>
