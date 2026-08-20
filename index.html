@@ -163,6 +163,14 @@ tr:hover td{background:#fafbff;cursor:pointer}
   margin-bottom: 10px;
 }
 
+/* 💡【追加】深耕営業テーブルの見出し固定 */
+#deep-table th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f8fafc;
+}
+
 .deep-row { position: relative; z-index: 1; } /* 重なり順制御用 */
 .deep-row td { vertical-align: top; padding: 6px 8px; }
 .deep-cell-single { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 34px; min-height: 34px; resize: none; }
@@ -596,8 +604,12 @@ tr:hover td{background:#fafbff;cursor:pointer}
         <table id="deep-table" style="width:100%; min-width:1250px;">
           <thead>
             <tr>
-              <th style="width:65px; text-align:center;">
-                <input type="checkbox" id="check-all-deep" class="row-checkbox" onchange="toggleAllDeepRows(this.checked)" title="全選択/全解除">
+              <!-- 💡【修正】幅を調整し、展開ボタン相当の空領域(28px)を入れて下の行とチェックボックス位置を同期 -->
+              <th style="width:80px; text-align:center;">
+                <div class="row-check-wrap">
+                  <span style="width:28px; display:inline-block;"></span>
+                  <input type="checkbox" id="check-all-deep" class="row-checkbox" onchange="toggleAllDeepRows(this.checked)" title="全選択/全解除">
+                </div>
               </th>
               <th style="width:240px;">企業名</th>
               <th style="width:100px;">担当者</th>
@@ -1536,9 +1548,12 @@ function renderDeepTable() {
         </td>
         <td>
           <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; markDeepDirty(${idx});" placeholder="企業名">
+        <td>
+          <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; markDeepDirty(${idx});" placeholder="企業名">
         </td>
         <td>
-          <select class="modal-sel assignee-sel assignee-sel-${row.assignee}" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].assignee=this.value; this.className='modal-sel assignee-sel assignee-sel-'+this.value; markDeepDirty(${idx});">
+          <!-- 💡【修正】disabled 判定を削除して常時操作可能に -->
+          <select class="modal-sel assignee-sel assignee-sel-${row.assignee}" onchange="DB.deep[${idx}].assignee=this.value; this.className='modal-sel assignee-sel assignee-sel-'+this.value; markDeepDirty(${idx});">
             <option value="">—</option>
             ${['川畑', '林', '松木'].map(a => `<option value="${a}" ${row.assignee === a ? 'selected' : ''}>${a}</option>`).join('')}
           </select>
@@ -1556,7 +1571,8 @@ function renderDeepTable() {
           </div>
         </td>
         <td>
-          <select class="modal-sel st-sel st-sel-${row.status}" ${isDisabled?'disabled':''} onchange="DB.deep[${idx}].status=this.value; this.className='modal-sel st-sel st-sel-'+this.value; markDeepDirty(${idx});">
+          <!-- 💡【修正】disabled 判定を削除して常時操作可能に -->
+          <select class="modal-sel st-sel st-sel-${row.status}" onchange="DB.deep[${idx}].status=this.value; this.className='modal-sel st-sel st-sel-'+this.value; markDeepDirty(${idx});">
             ${STATUS_LIST.map(s => `<option value="${s}" ${row.status===s?'selected':''}>${s}</option>`).join('')}
           </select>
         </td>
