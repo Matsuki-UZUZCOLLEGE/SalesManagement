@@ -163,14 +163,14 @@ tr:hover td{background:#fafbff;cursor:pointer}
   margin-bottom: 10px;
 }
 
-/* 💡【修正】深耕営業テーブルの縦スクロール＆見出し追従固定（ズレ防止設定） */
+/* 💡【修正】深耕営業テーブルの縦スクロール＆見出し追従固定設定 */
 #tab-deep .tbl-wrap {
   max-height: calc(100vh - 210px);
   overflow: auto;
 }
 
 #deep-table {
-  border-collapse: separate; /* sticky時の枠線・列ズレ崩れを防止 */
+  border-collapse: separate;
   border-spacing: 0;
   width: 100%;
   min-width: 1250px;
@@ -622,30 +622,21 @@ tr:hover td{background:#fafbff;cursor:pointer}
         <table id="deep-table">
           <thead>
             <tr>
-              <!-- 1列目: 展開ボタン分のスペース + 一括チェックボックス -->
+              <!-- 💡【修正】左端に展開ボタン相当の空スペース(28px)を確保し、下の行のチェックボックスと縦位置を同期 -->
               <th style="width:80px; text-align:center;">
                 <div class="row-check-wrap">
                   <span style="width:28px; display:inline-block; flex-shrink:0;"></span>
                   <input type="checkbox" id="check-all-deep" class="row-checkbox" onchange="toggleAllDeepRows(this.checked)" title="全選択/全解除">
                 </div>
               </th>
-              <!-- 2列目: 企業名（1列のみ） -->
               <th style="width:240px;">企業名</th>
-              <!-- 3列目: 担当者 -->
               <th style="width:100px;">担当者</th>
-              <!-- 4列目: 提供中サービス -->
               <th style="width:180px;">提供中サービス</th>
-              <!-- 5列目: ステータス -->
               <th style="width:110px;">ステータス</th>
-              <!-- 6列目: 総売上金額 -->
               <th style="width:120px; text-align:right;">総売上金額</th>
-              <!-- 7列目: 戦略 -->
               <th style="width:200px;">戦略</th>
-              <!-- 8列目: ToDo -->
               <th style="width:280px;">ToDo</th>
-              <!-- 9列目: 状況 -->
               <th>状況</th>
-              <!-- 10列目: 操作 -->
               <th style="width:65px; text-align:center;">操作</th>
             </tr>
           </thead>
@@ -1573,13 +1564,12 @@ function renderDeepTable() {
             <input type="checkbox" class="row-checkbox" ${row.checked?'checked':''} onchange="toggleDeepRowCheck(${idx}, this.checked)">
           </div>
         </td>
-        <td>
-          <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; markDeepDirty(${idx});" placeholder="企業名">
+        <!-- 💡【修正】重複していた2つ目の企業名セルを削除し、正しい1列構成に修復 -->
         <td>
           <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; markDeepDirty(${idx});" placeholder="企業名">
         </td>
+        <!-- 💡【修正】disabled 判定を削除して展開前でも常時操作可能に -->
         <td>
-          <!-- 💡【修正】disabled 判定を削除して常時操作可能に -->
           <select class="modal-sel assignee-sel assignee-sel-${row.assignee}" onchange="DB.deep[${idx}].assignee=this.value; this.className='modal-sel assignee-sel assignee-sel-'+this.value; markDeepDirty(${idx});">
             <option value="">—</option>
             ${['川畑', '林', '松木'].map(a => `<option value="${a}" ${row.assignee === a ? 'selected' : ''}>${a}</option>`).join('')}
@@ -1597,8 +1587,8 @@ function renderDeepTable() {
             `).join('')}
           </div>
         </td>
+        <!-- 💡【修正】disabled 判定を削除して展開前でも常時操作可能に -->
         <td>
-          <!-- 💡【修正】disabled 判定を削除して常時操作可能に -->
           <select class="modal-sel st-sel st-sel-${row.status}" onchange="DB.deep[${idx}].status=this.value; this.className='modal-sel st-sel st-sel-'+this.value; markDeepDirty(${idx});">
             ${STATUS_LIST.map(s => `<option value="${s}" ${row.status===s?'selected':''}>${s}</option>`).join('')}
           </select>
