@@ -239,7 +239,19 @@ tr:hover td{background:#fafbff;cursor:pointer}
   cursor: not-allowed;
   border-color: #e2e8f0;
 }
+/* 💡【追加】深耕営業テーブルの企業名強調スタイル */
+.deep-company-input {
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
 
+.deep-company-input:disabled, .deep-company-input[disabled] {
+  background-color: #f8fafc !important;
+  color: #0f172a !important; /* 折りたたみ時もくっきり黒文字を維持 */
+  opacity: 1 !important;
+}
 /* ToDo文字サイズ */
 .todo-list { display: flex; flex-direction: column; gap: 4px; }
 .todo-item { display: flex; align-items: center; gap: 6px; }
@@ -1615,11 +1627,10 @@ function renderDeepTable() {
             <input type="checkbox" class="row-checkbox" ${row.checked?'checked':''} onchange="toggleDeepRowCheck(${idx}, this.checked)">
           </div>
         </td>
-        <!-- 💡【修正】重複していた2つ目の企業名セルを削除し、正しい1列構成に修復 -->
+        <!-- 💡【修正】deep-company-input クラスを追加して企業名を太字・強調表示 -->
         <td>
-          <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; markDeepDirty(${idx});" placeholder="企業名">
+          <input type="text" class="modal-input deep-company-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; markDeepDirty(${idx});" placeholder="企業名">
         </td>
-        <!-- 💡【修正】disabled 判定を削除して展開前でも常時操作可能に -->
         <td>
           <select class="modal-sel assignee-sel assignee-sel-${row.assignee}" onchange="DB.deep[${idx}].assignee=this.value; this.className='modal-sel assignee-sel assignee-sel-'+this.value; markDeepDirty(${idx});">
             <option value="">—</option>
