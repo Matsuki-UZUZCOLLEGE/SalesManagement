@@ -917,32 +917,58 @@ function fmtDate(d){ return d ? `${d.getFullYear()}/${String(d.getMonth()+1).pad
 function pct(v){ return v ? (v*100).toFixed(1)+'%' : '—'; }
 
 // 💡【修正】全シートを1回の通信で一括取得する処理に書き換えて読み込み速度を爆速化
+// 💡【修正】一括読み込み（readAll）＋失敗時の自動フォールバック対応
 async function loadAllData() {
   useDemoData(); showLoading(false); renderAll(); if (!cfg.asUrl) return;
   try {
     const r = await fetch(cfg.asUrl + '?action=readAll', { redirect: 'follow' });
     const j = await r.json();
-    if (j.status === 'error') throw new Error(j.message);
-    const allData = j.data;
-
-    const dealsRaw = allData[SHEETS.deals];
-    if (!dealsRaw) { notify('デモデータを表示しています。', 'warn'); return; }
-
-    DB.deals = processDeals(dealsRaw);
-    DB.actions = allData[SHEETS.actions] ? processActions(allData[SHEETS.actions]) : DB.actions;
-    DB.targets = allData[SHEETS.target] ? processTargets(allData[SHEETS.target]) : DB.targets;
     
-    const rev2026 = allData[SHEETS.revenue] ? processRevenues(allData[SHEETS.revenue], 5) : [];
-    const rev2025 = allData['【参照】売上管理(2025)'] ? processRevenues(allData['【参照】売上管理(2025)'], 6) : [];
-    DB.revenues = [...rev2026, ...rev2025];
-    
-    DB.marketing = allData[SHEETS.marketing] ? processMarketing(allData[SHEETS.marketing]) : DB.marketing;
-    DB.history = allData[SHEETS.history] ? processHistory(allData[SHEETS.history]) : [];
-    DB.forecasts = allData[SHEETS.forecasts] ? processForecasts(allData[SHEETS.forecasts]) : [];
-    DB.deep = allData[SHEETS.deep] ? processDeep(allData[SHEETS.deep]) : [];
+    // readAllが成功した場合
+    if (j.status === 'ok' && j.data) {
+      const allData = j.data;
+      const dealsRaw = allData[SHEETS.deals];
+      if (dealsRaw && dealsRaw.length > 0) {
+        DB.deals = processDeals(dealsRaw);
+        DB.actions = allData[SHEETS.actions] ? processActions(allData[SHEETS.actions]) : DB.actions;
+        DB.targets = allData[SHEETS.target] ? processTargets(allData[SHEETS.target]) : DB.targets;
+        
+        const rev2026 = allData[SHEETS.revenue] ? processRevenues(allData[SHEETS.revenue], 5) : [];
+        const rev2025 = allData['【参照】売上管理(2025)'] ? processRevenues(allData['【参照】売上管理(2025)'], 6) : [];
+        DB.revenues = [...rev2026, ...rev2025];
+        
+        DB.marketing = allData[SHEETS.marketing] ? processMarketing(allData[SHEETS.marketing]) : DB.marketing;
+        DB.history = allData[SHEETS.history] ? processHistory(allData[SHEETS.history]) : [];
+        DB.forecasts = allData[SHEETS.forecasts] ? processForecasts(allData[SHEETS.forecasts]) : [];
+        DB.deep = allData[SHEETS.deep] ? processDeep(allData[SHEETS.deep]) : [];
 
-    notify('データを読み込みました ✓', 'ok'); renderAll();
-  } catch(e) { notify('読み込みエラー: ' + e.message, 'warn'); }
+        notify('データを読み込みました ✓', 'ok'); renderAll();
+        return;
+      }
+    }
+    throw new Error(j.message || 'readAll failed');
+  } catch(e) {
+    // GAS未更新などで readAll が失敗した場合は従来の個別取得に自動切替
+    try {
+      const res = await Promise.allSettled([
+        fetchSheet(SHEETS.deals), fetchSheet(SHEETS.actions), fetchSheet(SHEETS.target),
+        fetchSheet(SHEETS.revenue), fetchSheet(SHEETS.marketing), fetchSheet(SHEETS.history),
+        fetchSheet(SHEETS.forecasts), fetchSheet('【参照】売上管理(2025)'), fetchSheet(SHEETS.deep)
+      ]);
+      const get = i => res[i].status==='fulfilled' ? res[i].value : null;
+      if(get(0)) {
+        DB.deals = processDeals(get(0)); DB.actions = get(1) ? processActions(get(1)) : DB.actions; DB.targets = get(2) ? processTargets(get(2)) : DB.targets;
+        const rev2026 = get(3) ? processRevenues(get(3), 5) : [];
+        const rev2025 = res[7] && res[7].status === 'fulfilled' ? processRevenues(res[7].value, 6) : [];
+        DB.revenues = [...rev2026, ...rev2025];
+        DB.marketing = get(4) ? processMarketing(get(4)) : DB.marketing; DB.history = get(5) ? processHistory(get(5)) : []; DB.forecasts = get(6) ? processForecasts(get(6)) : [];
+        DB.deep = get(8) ? processDeep(get(8)) : [];
+        notify('データを読み込みました(互換モード) ✓', 'ok'); renderAll();
+        return;
+      }
+    } catch(err){}
+    notify('デモデータを表示しています（GASの新しいデプロイを実行してください）', 'warn');
+  }
 }
 function showLoading(on){ $('dashboard-loading').style.display=on?'flex':'none'; $('dashboard-content').style.display=on?'none':'block'; }
 
