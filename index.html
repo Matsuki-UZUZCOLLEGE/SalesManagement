@@ -629,9 +629,8 @@ tr:hover td{background:#fafbff;cursor:pointer}
                   <input type="checkbox" id="check-all-deep" class="row-checkbox" onchange="toggleAllDeepRows(this.checked)" title="全選択/全解除">
                 </div>
               </th>
-              <!-- 💡【修正】クリックで並び替え可能に（企業名、ステータス、総売上金額） -->
               <th style="width:240px; cursor:pointer; user-select:none;" onclick="setDeepSort('company')">企業名 <span id="sort-icon-company" style="font-size:10px; opacity:0.3;">↕</span></th>
-              <th style="width:100px;">担当者</th>
+              <th style="width:100px; cursor:pointer; user-select:none;" onclick="setDeepSort('assignee')">担当者 <span id="sort-icon-assignee" style="font-size:10px; opacity:0.3;">↕</span></th>
               <th style="width:180px;">提供中サービス</th>
               <th style="width:110px; cursor:pointer; user-select:none;" onclick="setDeepSort('status')">ステータス <span id="sort-icon-status" style="font-size:10px; opacity:0.3;">↕</span></th>
               <th style="width:120px; text-align:right; cursor:pointer; user-select:none;" onclick="setDeepSort('revenue')">総売上金額 <span id="sort-icon-revenue" style="font-size:10px; opacity:0.3;">↕</span></th>
@@ -1512,7 +1511,7 @@ function setDeepSort(key) {
 }
 
 function updateDeepSortIcons() {
-  ['company', 'status', 'revenue'].forEach(key => {
+  ['company', 'assignee', 'status', 'revenue'].forEach(key => {
     const el = $('sort-icon-' + key);
     if (el) {
       if (deepSortKey === key) {
@@ -1553,6 +1552,9 @@ function renderDeepTable() {
       if (deepSortKey === 'company') {
         valA = a.company.toLowerCase();
         valB = b.company.toLowerCase();
+      } else if (deepSortKey === 'assignee') {
+        valA = a.assignee.toLowerCase();
+        valB = b.assignee.toLowerCase();
       } else if (deepSortKey === 'status') {
         valA = STATUS_LIST.indexOf(a.status);
         valB = STATUS_LIST.indexOf(b.status);
@@ -1565,8 +1567,6 @@ function renderDeepTable() {
       return 0;
     });
   }
-
-  updateDeepSortIcons();
 
   if (filteredList.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af">該当するデータがありません。</td></tr>';
