@@ -239,19 +239,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
   cursor: not-allowed;
   border-color: #e2e8f0;
 }
-/* 💡【追加】深耕営業テーブルの企業名強調スタイル */
-.deep-company-input {
-  font-weight: 800 !important;
-  font-size: 14px !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
-}
 
-.deep-company-input:disabled, .deep-company-input[disabled] {
-  background-color: #f8fafc !important;
-  color: #0f172a !important; /* 折りたたみ時もくっきり黒文字を維持 */
-  opacity: 1 !important;
-}
 /* ToDo文字サイズ */
 .todo-list { display: flex; flex-direction: column; gap: 4px; }
 .todo-item { display: flex; align-items: center; gap: 6px; }
@@ -634,18 +622,18 @@ tr:hover td{background:#fafbff;cursor:pointer}
         <table id="deep-table">
           <thead>
             <tr>
-              <!-- 1列目: 展開ボタン分のスペース + 一括チェックボックス -->
+              <!-- 💡【修正】左端に展開ボタン相当の空スペース(28px)を確保し、下の行のチェックボックスと縦位置を同期 -->
               <th style="width:80px; text-align:center;">
                 <div class="row-check-wrap">
                   <span style="width:28px; display:inline-block; flex-shrink:0;"></span>
                   <input type="checkbox" id="check-all-deep" class="row-checkbox" onchange="toggleAllDeepRows(this.checked)" title="全選択/全解除">
                 </div>
               </th>
-              <th style="width:240px; cursor:pointer; user-select:none;" onclick="setDeepSort('company')">企業名 <span id="sort-icon-company" style="font-size:10px; opacity:0.3;">↕</span></th>
-              <th style="width:100px; cursor:pointer; user-select:none;" onclick="setDeepSort('assignee')">担当者 <span id="sort-icon-assignee" style="font-size:10px; opacity:0.3;">↕</span></th>
+              <th style="width:240px;">企業名</th>
+              <th style="width:100px;">担当者</th>
               <th style="width:180px;">提供中サービス</th>
-              <th style="width:110px; cursor:pointer; user-select:none;" onclick="setDeepSort('status')">ステータス <span id="sort-icon-status" style="font-size:10px; opacity:0.3;">↕</span></th>
-              <th style="width:120px; text-align:right; cursor:pointer; user-select:none;" onclick="setDeepSort('revenue')">総売上金額 <span id="sort-icon-revenue" style="font-size:10px; opacity:0.3;">↕</span></th>
+              <th style="width:110px;">ステータス</th>
+              <th style="width:120px; text-align:right;">総売上金額</th>
               <th style="width:200px;">戦略</th>
               <th style="width:280px;">ToDo</th>
               <th>状況</th>
@@ -916,59 +904,35 @@ function fmtFull(n){ return !n ? '0円' : Math.round(n).toLocaleString()+'円'; 
 function fmtDate(d){ return d ? `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}` : '—'; }
 function pct(v){ return v ? (v*100).toFixed(1)+'%' : '—'; }
 
-// 💡【修正】全シートを1回の通信で一括取得する処理に書き換えて読み込み速度を爆速化
-// 💡【修正】一括読み込み（readAll）＋失敗時の自動フォールバック対応
 async function loadAllData() {
   useDemoData(); showLoading(false); renderAll(); if (!cfg.asUrl) return;
   try {
-    const r = await fetch(cfg.asUrl + '?action=readAll', { redirect: 'follow' });
-    const j = await r.json();
+    const res = await Promise.allSettled([
+      fetchSheet(SHEETS.deals), 
+      fetchSheet(SHEETS.actions), 
+      fetchSheet(SHEETS.target), 
+      fetchSheet(SHEETS.revenue), 
+      fetchSheet(SHEETS.marketing), 
+      fetchSheet(SHEETS.history), 
+      fetchSheet(SHEETS.forecasts),
+      fetchSheet('【参照】売上管理(2025)'),
+      fetchSheet(SHEETS.deep) // 💡【追加】8番目
+    ]);
+    const get = i => res[i].status==='fulfilled' ? res[i].value : null;
+    if(!get(0)){ notify('デモデータを表示しています。','warn'); return; }
+    DB.deals = processDeals(get(0)); DB.actions = get(1) ? processActions(get(1)) : DB.actions; DB.targets = get(2) ? processTargets(get(2)) : DB.targets; 
     
-    // readAllが成功した場合
-    if (j.status === 'ok' && j.data) {
-      const allData = j.data;
-      const dealsRaw = allData[SHEETS.deals];
-      if (dealsRaw && dealsRaw.length > 0) {
-        DB.deals = processDeals(dealsRaw);
-        DB.actions = allData[SHEETS.actions] ? processActions(allData[SHEETS.actions]) : DB.actions;
-        DB.targets = allData[SHEETS.target] ? processTargets(allData[SHEETS.target]) : DB.targets;
-        
-        const rev2026 = allData[SHEETS.revenue] ? processRevenues(allData[SHEETS.revenue], 5) : [];
-        const rev2025 = allData['【参照】売上管理(2025)'] ? processRevenues(allData['【参照】売上管理(2025)'], 6) : [];
-        DB.revenues = [...rev2026, ...rev2025];
-        
-        DB.marketing = allData[SHEETS.marketing] ? processMarketing(allData[SHEETS.marketing]) : DB.marketing;
-        DB.history = allData[SHEETS.history] ? processHistory(allData[SHEETS.history]) : [];
-        DB.forecasts = allData[SHEETS.forecasts] ? processForecasts(allData[SHEETS.forecasts]) : [];
-        DB.deep = allData[SHEETS.deep] ? processDeep(allData[SHEETS.deep]) : [];
+    const rev2026 = get(3) ? processRevenues(get(3), 5) : [];
+    const rev2025 = res[7] && res[7].status === 'fulfilled' ? processRevenues(res[7].value, 6) : [];
+    DB.revenues = [...rev2026, ...rev2025];
+    
+    DB.marketing = get(4) ? processMarketing(get(4)) : DB.marketing; DB.history = get(5) ? processHistory(get(5)) : []; DB.forecasts = get(6) ? processForecasts(get(6)) : [];
+    
+    // 💡【追加】深耕営業データのパース
+    DB.deep = get(8) ? processDeep(get(8)) : [];
 
-        notify('データを読み込みました ✓', 'ok'); renderAll();
-        return;
-      }
-    }
-    throw new Error(j.message || 'readAll failed');
-  } catch(e) {
-    // GAS未更新などで readAll が失敗した場合は従来の個別取得に自動切替
-    try {
-      const res = await Promise.allSettled([
-        fetchSheet(SHEETS.deals), fetchSheet(SHEETS.actions), fetchSheet(SHEETS.target),
-        fetchSheet(SHEETS.revenue), fetchSheet(SHEETS.marketing), fetchSheet(SHEETS.history),
-        fetchSheet(SHEETS.forecasts), fetchSheet('【参照】売上管理(2025)'), fetchSheet(SHEETS.deep)
-      ]);
-      const get = i => res[i].status==='fulfilled' ? res[i].value : null;
-      if(get(0)) {
-        DB.deals = processDeals(get(0)); DB.actions = get(1) ? processActions(get(1)) : DB.actions; DB.targets = get(2) ? processTargets(get(2)) : DB.targets;
-        const rev2026 = get(3) ? processRevenues(get(3), 5) : [];
-        const rev2025 = res[7] && res[7].status === 'fulfilled' ? processRevenues(res[7].value, 6) : [];
-        DB.revenues = [...rev2026, ...rev2025];
-        DB.marketing = get(4) ? processMarketing(get(4)) : DB.marketing; DB.history = get(5) ? processHistory(get(5)) : []; DB.forecasts = get(6) ? processForecasts(get(6)) : [];
-        DB.deep = get(8) ? processDeep(get(8)) : [];
-        notify('データを読み込みました(互換モード) ✓', 'ok'); renderAll();
-        return;
-      }
-    } catch(err){}
-    notify('デモデータを表示しています（GASの新しいデプロイを実行してください）', 'warn');
-  }
+    notify('データを読み込みました ✓','ok'); renderAll();
+  } catch(e){ notify('読み込みエラー: '+e.message,'warn'); }
 }
 function showLoading(on){ $('dashboard-loading').style.display=on?'flex':'none'; $('dashboard-content').style.display=on?'none':'block'; }
 
@@ -1533,34 +1497,6 @@ function updateUnsavedWarning() {
   }
 }
 
-// 💡【追加】深耕営業ソート管理用変数・関数
-let deepSortKey = '', deepSortDir = 'asc';
-
-function setDeepSort(key) {
-  if (deepSortKey === key) {
-    deepSortDir = deepSortDir === 'asc' ? 'desc' : 'asc';
-  } else {
-    deepSortKey = key;
-    deepSortDir = 'asc';
-  }
-  renderDeepTable();
-}
-
-function updateDeepSortIcons() {
-  ['company', 'assignee', 'status', 'revenue'].forEach(key => {
-    const el = $('sort-icon-' + key);
-    if (el) {
-      if (deepSortKey === key) {
-        el.textContent = deepSortDir === 'asc' ? '▲' : '▼';
-        el.style.opacity = '1';
-      } else {
-        el.textContent = '↕';
-        el.style.opacity = '0.3';
-      }
-    }
-  });
-}
-
 // 深耕営業テーブルの描画
 function renderDeepTable() {
   const tbody = $('deep-table-body');
@@ -1571,7 +1507,7 @@ function renderDeepTable() {
   const filterService = $('deep-filter-service')?.value || '';
   const filterStatus = $('deep-filter-status')?.value || '';
 
-  let filteredList = DB.deep
+  const filteredList = DB.deep
     .map((row, originalIdx) => ({ ...row, _origIdx: originalIdx }))
     .filter(row => {
       if (searchText && !row.company.toLowerCase().includes(searchText)) return false;
@@ -1580,29 +1516,6 @@ function renderDeepTable() {
       if (filterStatus && row.status !== filterStatus) return false;
       return true;
     });
-
-  // 💡【追加】ソート実行処理
-  if (deepSortKey) {
-    filteredList.sort((a, b) => {
-      let valA, valB;
-      if (deepSortKey === 'company') {
-        valA = a.company.toLowerCase();
-        valB = b.company.toLowerCase();
-      } else if (deepSortKey === 'assignee') {
-        valA = a.assignee.toLowerCase();
-        valB = b.assignee.toLowerCase();
-      } else if (deepSortKey === 'status') {
-        valA = STATUS_LIST.indexOf(a.status);
-        valB = STATUS_LIST.indexOf(b.status);
-      } else if (deepSortKey === 'revenue') {
-        valA = calcCompanyTotalRevenue(a.company);
-        valB = calcCompanyTotalRevenue(b.company);
-      }
-      if (valA < valB) return deepSortDir === 'asc' ? -1 : 1;
-      if (valA > valB) return deepSortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }
 
   if (filteredList.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af">該当するデータがありません。</td></tr>';
@@ -1651,10 +1564,11 @@ function renderDeepTable() {
             <input type="checkbox" class="row-checkbox" ${row.checked?'checked':''} onchange="toggleDeepRowCheck(${idx}, this.checked)">
           </div>
         </td>
-        <!-- 💡【修正】deep-company-input クラスを追加して企業名を太字・強調表示 -->
+        <!-- 💡【修正】重複していた2つ目の企業名セルを削除し、正しい1列構成に修復 -->
         <td>
-          <input type="text" class="modal-input deep-company-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; markDeepDirty(${idx});" placeholder="企業名">
+          <input type="text" class="modal-input" value="${row.company}" ${isDisabled?'disabled':''} oninput="DB.deep[${idx}].company=this.value; markDeepDirty(${idx});" placeholder="企業名">
         </td>
+        <!-- 💡【修正】disabled 判定を削除して展開前でも常時操作可能に -->
         <td>
           <select class="modal-sel assignee-sel assignee-sel-${row.assignee}" onchange="DB.deep[${idx}].assignee=this.value; this.className='modal-sel assignee-sel assignee-sel-'+this.value; markDeepDirty(${idx});">
             <option value="">—</option>
