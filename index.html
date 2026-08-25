@@ -896,6 +896,22 @@ function processForecasts(rows) {
     };
   }).filter(f => f.company || f.assignee); 
 }
+  // 💡【追加】深耕営業データ処理関数
+function processDeep(rows) {
+  if (!rows || rows.length <= 1) return [];
+  return rows.slice(1).map((r, i) => ({
+    rowIndex: i + 2,
+    company: r[0] ? String(r[0]).trim() : '',
+    assignee: r[1] ? String(r[1]).trim() : '',
+    services: r[2] ? String(r[2]).trim() : '',
+    status: r[3] ? String(r[3]).trim() : '未提案',
+    revenue: parseNum(r[4]),
+    strategy: safeStr(r[5]),
+    todo: safeStr(r[6]),
+    situation: safeStr(r[7])
+  })).filter(d => d.company);
+}
+
 
 function parseNum(v){ if(!v)return 0; if(typeof v==='number')return v; const n=parseFloat(String(v).replace(/[,¥$]/g,'')); return isNaN(n)?0:n; }
 function parseDate(v){ if(!v)return null; if(v instanceof Date)return isNaN(v)?null:v; const d=new Date(v); return isNaN(d)?null:d; }
