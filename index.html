@@ -798,8 +798,6 @@ let deepSortKey = '', deepSortDir = 'asc';
 
 const $ = id => document.getElementById(id);
 
-const $ = id => document.getElementById(id);
-
 function toggleTypeDropdown(e) { e.stopPropagation(); const o = $('m-edit-type-options'); o.style.display = o.style.display === 'none' ? 'flex' : 'none'; }
 function updateTypeLabel() {
   const selected = []; document.querySelectorAll('#m-edit-type-options input').forEach(cb => { if(cb.checked) selected.push(cb.value); });
@@ -1518,8 +1516,6 @@ function updateUnsavedWarning() {
   }
 }
 
-// 💡【追加】深耕営業ソート管理用変数・関数
-let deepSortKey = '', deepSortDir = 'asc';
 
 function setDeepSort(key) {
   if (deepSortKey === key) {
