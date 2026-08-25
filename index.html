@@ -1619,7 +1619,8 @@ function renderDeepTable() {
         ${row.todos.map((t, tIdx) => `
           <div class="todo-item ${t.done?'done':''}">
             <input type="checkbox" ${t.done?'checked':''} onchange="toggleDeepTodoDone(${idx}, ${tIdx})">
-            <input type="text" value="${t.text}" oninput="updateDeepTodoText(${idx}, ${tIdx}, this.value)" onkeydown="handleTodoKeyDown(event, ${idx}, ${tIdx})" placeholder="タスクを入力（Enterで追加）">
+            <!-- 💡【修正】onkeydown イベント属性を削除し、placeholder を更新 -->
+            <input type="text" value="${t.text}" oninput="updateDeepTodoText(${idx}, ${tIdx}, this.value)" placeholder="タスクを入力">
           </div>
         `).join('')}
         <button class="btn btn-ghost btn-sm" style="font-size:11px; padding:2px 8px; align-self:flex-start; margin-top:2px;" onclick="addDeepTodoItem(${idx})">＋ タスク追加</button>
@@ -1757,20 +1758,6 @@ function addDeepTodoItem(rowIdx) {
   DB.deep[rowIdx].todos.push({ text: '', done: false });
   markDeepDirty(rowIdx);
   renderDeepTable();
-}
-
-function handleTodoKeyDown(e, rowIdx, todoIdx) {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    syncDeepInputsFromDOM();
-    DB.deep[rowIdx].todos.splice(todoIdx + 1, 0, { text: '', done: false });
-    markDeepDirty(rowIdx);
-    renderDeepTable();
-    setTimeout(() => {
-      const inputs = document.querySelectorAll(`#todo-list-${rowIdx} input[type="text"]`);
-      if (inputs[todoIdx + 1]) inputs[todoIdx + 1].focus();
-    }, 50);
-  }
 }
 
 function addDeepRow() {
