@@ -622,18 +622,18 @@ tr:hover td{background:#fafbff;cursor:pointer}
         <table id="deep-table">
           <thead>
             <tr>
-              <!-- 💡【修正】左端に展開ボタン相当の空スペース(28px)を確保し、下の行のチェックボックスと縦位置を同期 -->
               <th style="width:80px; text-align:center;">
                 <div class="row-check-wrap">
                   <span style="width:28px; display:inline-block; flex-shrink:0;"></span>
                   <input type="checkbox" id="check-all-deep" class="row-checkbox" onchange="toggleAllDeepRows(this.checked)" title="全選択/全解除">
                 </div>
               </th>
-              <th style="width:240px;">企業名</th>
-              <th style="width:100px;">担当者</th>
+              <!-- 💡【修正】クリックで並び替え可能に設定（企業名、担当者、ステータス、総売上金額） -->
+              <th style="width:240px; cursor:pointer; user-select:none;" onclick="setDeepSort('company')">企業名 <span id="sort-icon-company" style="font-size:10px; opacity:0.3;">↕</span></th>
+              <th style="width:100px; cursor:pointer; user-select:none;" onclick="setDeepSort('assignee')">担当者 <span id="sort-icon-assignee" style="font-size:10px; opacity:0.3;">↕</span></th>
               <th style="width:180px;">提供中サービス</th>
-              <th style="width:110px;">ステータス</th>
-              <th style="width:120px; text-align:right;">総売上金額</th>
+              <th style="width:110px; cursor:pointer; user-select:none;" onclick="setDeepSort('status')">ステータス <span id="sort-icon-status" style="font-size:10px; opacity:0.3;">↕</span></th>
+              <th style="width:120px; text-align:right; cursor:pointer; user-select:none;" onclick="setDeepSort('revenue')">総売上金額 <span id="sort-icon-revenue" style="font-size:10px; opacity:0.3;">↕</span></th>
               <th style="width:200px;">戦略</th>
               <th style="width:280px;">ToDo</th>
               <th>状況</th>
@@ -1497,6 +1497,34 @@ function updateUnsavedWarning() {
   }
 }
 
+// 💡【追加】深耕営業ソート管理用変数・関数
+let deepSortKey = '', deepSortDir = 'asc';
+
+function setDeepSort(key) {
+  if (deepSortKey === key) {
+    deepSortDir = deepSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    deepSortKey = key;
+    deepSortDir = 'asc';
+  }
+  renderDeepTable();
+}
+
+function updateDeepSortIcons() {
+  ['company', 'assignee', 'status', 'revenue'].forEach(key => {
+    const el = $('sort-icon-' + key);
+    if (el) {
+      if (deepSortKey === key) {
+        el.textContent = deepSortDir === 'asc' ? '▲' : '▼';
+        el.style.opacity = '1';
+      } else {
+        el.textContent = '↕';
+        el.style.opacity = '0.3';
+      }
+    }
+  });
+}
+
 // 深耕営業テーブルの描画
 function renderDeepTable() {
   const tbody = $('deep-table-body');
@@ -1507,7 +1535,7 @@ function renderDeepTable() {
   const filterService = $('deep-filter-service')?.value || '';
   const filterStatus = $('deep-filter-status')?.value || '';
 
-  const filteredList = DB.deep
+  let filteredList = DB.deep
     .map((row, originalIdx) => ({ ...row, _origIdx: originalIdx }))
     .filter(row => {
       if (searchText && !row.company.toLowerCase().includes(searchText)) return false;
@@ -1516,6 +1544,31 @@ function renderDeepTable() {
       if (filterStatus && row.status !== filterStatus) return false;
       return true;
     });
+
+  // 💡【追加】ソート実行処理
+  if (deepSortKey) {
+    filteredList.sort((a, b) => {
+      let valA, valB;
+      if (deepSortKey === 'company') {
+        valA = a.company.toLowerCase();
+        valB = b.company.toLowerCase();
+      } else if (deepSortKey === 'assignee') {
+        valA = a.assignee.toLowerCase();
+        valB = b.assignee.toLowerCase();
+      } else if (deepSortKey === 'status') {
+        valA = STATUS_LIST.indexOf(a.status);
+        valB = STATUS_LIST.indexOf(b.status);
+      } else if (deepSortKey === 'revenue') {
+        valA = calcCompanyTotalRevenue(a.company);
+        valB = calcCompanyTotalRevenue(b.company);
+      }
+      if (valA < valB) return deepSortDir === 'asc' ? -1 : 1;
+      if (valA > valB) return deepSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  updateDeepSortIcons();
 
   if (filteredList.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af">該当するデータがありません。</td></tr>';
