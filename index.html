@@ -628,7 +628,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
                   <input type="checkbox" id="check-all-deep" class="row-checkbox" onchange="toggleAllDeepRows(this.checked)" title="全選択/全解除">
                 </div>
               </th>
-              <!-- 💡【修正】クリックで並び替え可能に設定（企業名、担当者、ステータス、総売上金額） -->
+              <!-- 💡【修正】企業名、担当者、ステータス、総売上金額の各見出しにクリックソート処理を追加 -->
               <th style="width:240px; cursor:pointer; user-select:none;" onclick="setDeepSort('company')">企業名 <span id="sort-icon-company" style="font-size:10px; opacity:0.3;">↕</span></th>
               <th style="width:100px; cursor:pointer; user-select:none;" onclick="setDeepSort('assignee')">担当者 <span id="sort-icon-assignee" style="font-size:10px; opacity:0.3;">↕</span></th>
               <th style="width:180px;">提供中サービス</th>
@@ -792,6 +792,11 @@ const PERSON_BAR_COLOR = {川畑:'#0ea5e9', 松木:'#eab308', 林:'#22c55e', な
 let DB = { deals:[], targets:{}, revenues:[], actions:[], marketing:{}, history:[], forecasts:[], deep:[] };
 let UI = { tab:'dashboard', view:'kanban', visibleSt:new Set(STATUSES), filterAssignee:'', filterType:'', filterPriority:'', searchText:'', activeDeal:null, charts:{}, monthlyViewMode:'all' };
 let currentForecastAssignee = '', currentForecasts = [], deletedForecastRows = [];
+
+// 💡【追加】ソート管理用変数を読み込み前に定義（エラー防止）
+let deepSortKey = '', deepSortDir = 'asc';
+
+const $ = id => document.getElementById(id);
 
 const $ = id => document.getElementById(id);
 
