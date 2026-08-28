@@ -1449,9 +1449,12 @@ function calcCompanyTotalRevenue(companyName) {
   const total = DB.revenues.reduce((sum, r) => {
     if (r.cat !== '法人研修') return sum;
     let cName = r.name ? r.name.trim() : '';
+    // 売上データ（案件名など）からカッコ書きの企業名を抽出
     const match = cName.match(/[（(](.*?)[）)]/);
     if (match && match[1]) cName = match[1].trim();
-    if (cName.toLowerCase() === targetName || (cName && targetName.includes(cName))) {
+    
+    // 💡【修正】売上分析タブと同じく完全一致でのみ加算する（includesを削除）
+    if (cName.toLowerCase() === targetName) {
       return sum + (r.amount || 0);
     }
     return sum;
