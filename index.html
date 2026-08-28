@@ -1495,38 +1495,6 @@ function syncDeepInputsFromDOM() {
   return;
 }
 
-  DB.deep.forEach((row, idx) => {
-    const rowEl = tbody.children[idx];
-    if (!rowEl) return;
-
-    const companyInp = rowEl.querySelector('input[type="text"][placeholder="企業名"]');
-    if (companyInp) row.company = companyInp.value;
-
-    const assigneeSel = rowEl.querySelector('select.assignee-sel');
-    if (assigneeSel) row.assignee = assigneeSel.value;
-
-    const statusSel = rowEl.querySelector('select.st-sel');
-    if (statusSel) row.status = statusSel.value;
-
-    const tas = rowEl.querySelectorAll('textarea');
-    if (tas.length >= 2) {
-      row.strategy = tas[0].value;
-      row.situation = tas[1].value;
-    } else if (tas.length === 1) {
-      row.strategy = tas[0].value;
-    }
-
-    const todoInputs = rowEl.querySelectorAll(`.todo-item input[type="text"]`);
-    const todoChecks = rowEl.querySelectorAll(`.todo-item input[type="checkbox"]`);
-    if (todoInputs.length > 0) {
-      row.todos = Array.from(todoInputs).map((inp, tIdx) => ({
-        text: inp.value,
-        done: todoChecks[tIdx] ? todoChecks[tIdx].checked : false
-      }));
-    }
-  });
-}
-
 // 深耕営業テーブルの描画
 // 深耕営業テーブルの描画（絞り込み機能対応）
 // 💡 未保存状態の判定と警告表示・ボタン点滅をまとめて更新する関数
@@ -1647,14 +1615,15 @@ function renderDeepTable() {
       }
     } else {
       todoHtml = `<div class="todo-list" id="todo-list-${idx}">
-        ${row.todos.map((t, tIdx) => `
-          <div class="todo-item ${t.done?'done':''}">
-            <input type="checkbox" ${t.done?'checked':''} onchange="toggleDeepTodoDone(${idx}, ${tIdx})">
-            <!-- 💡【修正】onkeydown イベント属性を削除し、placeholder を更新 -->
-            <input type="text" value="${t.text}" oninput="updateDeepTodoText(${idx}, ${tIdx}, this.value)" placeholder="タスクを入力">
-            // 💡 type="button" と event を明示し、誤動作を防止
-<button type="button" class="btn-delete-todo" onclick="deleteDeepTodoItem(event, ${idx}, ${tIdx})" title="このタスクを削除">−</button>
-          </div>
+            ${row.todos.map((t, tIdx) => `
+              <div class="todo-item ${t.done?'done':''}">
+                <input type="checkbox" ${t.done?'checked':''} onchange="toggleDeepTodoDone(${idx}, ${tIdx})">
+                <input type="text" value="${t.text}" oninput="updateDeepTodoText(${idx}, ${tIdx}, this.value)" placeholder="タスクを入力">
+                <button type="button" class="btn-delete-todo" onclick="deleteDeepTodoItem(event, ${idx}, ${tIdx})" title="このタスクを削除">−</button>
+              </div>
+            `).join('')}
+            <button class="btn btn-ghost btn-sm" style="font-size:11px; padding:2px 8px; align-self:flex-start; margin-top:2px;" onclick="addDeepTodoItem(${idx})">＋ タスク追加</button>
+          </div>`;
         `).join('')}
         <button class="btn btn-ghost btn-sm" style="font-size:11px; padding:2px 8px; align-self:flex-start; margin-top:2px;" onclick="addDeepTodoItem(${idx})">＋ タスク追加</button>
       </div>`;
