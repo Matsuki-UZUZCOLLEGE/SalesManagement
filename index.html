@@ -162,7 +162,32 @@ tr:hover td{background:#fafbff;cursor:pointer}
   padding: 10px 0;
   margin-bottom: 10px;
 }
-
+/* 💡 ToDo削除ボタンのスタイル */
+.btn-delete-todo {
+  background: transparent;
+  color: #ef4444;           /* 赤文字 */
+  border: 1px solid #ef4444; /* 丸枠（赤） */
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.btn-delete-todo:hover {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #dc2626;
+  transform: scale(1.1);
+}
+  
 /* 💡【修正】深耕営業テーブルの縦スクロール＆見出し追従固定設定 */
 #tab-deep .tbl-wrap {
   max-height: calc(100vh - 210px);
@@ -1624,6 +1649,8 @@ function renderDeepTable() {
             <input type="checkbox" ${t.done?'checked':''} onchange="toggleDeepTodoDone(${idx}, ${tIdx})">
             <!-- 💡【修正】onkeydown イベント属性を削除し、placeholder を更新 -->
             <input type="text" value="${t.text}" oninput="updateDeepTodoText(${idx}, ${tIdx}, this.value)" placeholder="タスクを入力">
+            <!-- 💡 ここに削除ボタンを追加 -->
+            <button class="btn-delete-todo" onclick="deleteDeepTodoItem(${idx}, ${tIdx})" title="このタスクを削除">−</button>
           </div>
         `).join('')}
         <button class="btn btn-ghost btn-sm" style="font-size:11px; padding:2px 8px; align-self:flex-start; margin-top:2px;" onclick="addDeepTodoItem(${idx})">＋ タスク追加</button>
@@ -1763,6 +1790,14 @@ function addDeepTodoItem(rowIdx) {
   renderDeepTable();
 }
 
+  // 💡 ToDo削除関数
+function deleteDeepTodoItem(rowIdx, todoIdx) {
+  syncDeepInputsFromDOM(); // 現在の入力状態をデータに同期
+  DB.deep[rowIdx].todos.splice(todoIdx, 1); // 該当のToDoを配列から削除
+  markDeepDirty(rowIdx);   // 未保存状態にして保存ボタンを点滅させる
+  renderDeepTable();       // テーブルを再描画
+}
+  
 function addDeepRow() {
   syncDeepInputsFromDOM();
   DB.deep.push({
