@@ -1488,9 +1488,12 @@ function calcCompanyTotalRevenue(companyName) {
 }
 
 // DOMからの同期
+// 💡 不具合の原因となっていたDOM同期処理を完全無効化
 function syncDeepInputsFromDOM() {
-  const tbody = $('deep-table-body');
-  if (!tbody) return;
+  // 各入力欄でリアルタイム更新（oninput/onchange）を行っているため、
+  // データ破壊のリスクがある本関数は実行しないように処理を空にします。
+  return;
+}
 
   DB.deep.forEach((row, idx) => {
     const rowEl = tbody.children[idx];
@@ -1649,8 +1652,8 @@ function renderDeepTable() {
             <input type="checkbox" ${t.done?'checked':''} onchange="toggleDeepTodoDone(${idx}, ${tIdx})">
             <!-- 💡【修正】onkeydown イベント属性を削除し、placeholder を更新 -->
             <input type="text" value="${t.text}" oninput="updateDeepTodoText(${idx}, ${tIdx}, this.value)" placeholder="タスクを入力">
-            <!-- 💡 ここに削除ボタンを追加 -->
-            <button class="btn-delete-todo" onclick="deleteDeepTodoItem(${idx}, ${tIdx})" title="このタスクを削除">−</button>
+            // 💡 type="button" と event を明示し、誤動作を防止
+<button type="button" class="btn-delete-todo" onclick="deleteDeepTodoItem(event, ${idx}, ${tIdx})" title="このタスクを削除">−</button>
           </div>
         `).join('')}
         <button class="btn btn-ghost btn-sm" style="font-size:11px; padding:2px 8px; align-self:flex-start; margin-top:2px;" onclick="addDeepTodoItem(${idx})">＋ タスク追加</button>
@@ -1790,12 +1793,15 @@ function addDeepTodoItem(rowIdx) {
   renderDeepTable();
 }
 
-  // 💡 ToDo削除関数
-function deleteDeepTodoItem(rowIdx, todoIdx) {
-  syncDeepInputsFromDOM(); // 現在の入力状態をデータに同期
-  DB.deep[rowIdx].todos.splice(todoIdx, 1); // 該当のToDoを配列から削除
-  markDeepDirty(rowIdx);   // 未保存状態にして保存ボタンを点滅させる
-  renderDeepTable();       // テーブルを再描画
+// 💡 安全なToDo削除関数（他データへの影響リスクゼロ）
+function deleteDeepTodoItem(event, rowIdx, todoIdx) {
+  if (event) event.stopPropagation(); // イベントが親要素（行）に伝播するのを確実に遮断
+  
+  if (DB.deep[rowIdx] && DB.deep[rowIdx].todos) {
+    DB.deep[rowIdx].todos.splice(todoIdx, 1); // 対象のToDo項目のみを安全に削除
+    markDeepDirty(rowIdx);   // 変更フラグを立てて保存ボタンを点滅表示
+    renderDeepTable();       // テーブルを安全に再描画
+  }
 }
   
 function addDeepRow() {
