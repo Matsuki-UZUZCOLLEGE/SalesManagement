@@ -437,7 +437,23 @@ tr:hover td{background:#fafbff;cursor:pointer}
   0%, 100% { opacity: 1; }
   50% { opacity: 0.25; }
 }
-
+/* 💡 深耕営業テーブル 列幅リサイズ用ハンドルのスタイル */
+.resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px; /* つかみやすい幅 */
+  cursor: col-resize;
+  user-select: none;
+  height: 100%;
+  z-index: 100;
+  background-color: transparent;
+  transition: background-color 0.15s;
+}
+.resizer:hover, .resizer.resizing {
+  background-color: #94a3b8; /* マウスオーバー時やドラッグ時に色がつく */
+}
+  
 </style>
 </head>
 <body>
@@ -2004,6 +2020,52 @@ async function saveAllDirtyDeepRows() {
     notify('保存エラー: ' + e.message, 'err');
   }
 }
+  // 💡 深耕営業タブの列幅をドラッグでリサイズ可能にする機能
+function initDeepTableResizers() {
+  const table = document.getElementById('deep-table');
+  if (!table) return;
+  const cols = table.querySelectorAll('thead th');
+  
+  cols.forEach(col => {
+    // 既にリサイザが存在する場合はスキップ
+    if (col.querySelector('.resizer')) return;
+
+    // リサイザ用要素の生成
+    const resizer = document.createElement('div');
+    resizer.classList.add('resizer');
+    col.appendChild(resizer);
+
+    let startX = 0;
+    let startWidth = 0;
+
+    const mouseDownHandler = function(e) {
+      e.stopPropagation(); // ソート機能のクリック反応を遮断
+      startX = e.clientX;
+      const styles = window.getComputedStyle(col);
+      startWidth = parseInt(styles.width, 10);
+
+      document.addEventListener('mousemove', mouseMoveHandler);
+      document.addEventListener('mouseup', mouseUpHandler);
+      resizer.classList.add('resizing');
+    };
+
+    const mouseMoveHandler = function(e) {
+      const dx = e.clientX - startX;
+      col.style.width = `${Math.max(40, startWidth + dx)}px`; // 最小幅を40pxに制限
+    };
+
+    const mouseUpHandler = function() {
+      document.removeEventListener('mousemove', mouseMoveHandler);
+      document.removeEventListener('mouseup', mouseUpHandler);
+      resizer.classList.remove('resizing');
+    };
+
+    resizer.addEventListener('mousedown', mouseDownHandler);
+  });
+}
+
+// 読み込み直後にリサイザを初期化して有効にする
+setTimeout(initDeepTableResizers, 500);
 </script>
 </body>
 </html>
