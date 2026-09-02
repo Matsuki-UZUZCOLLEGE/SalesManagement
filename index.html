@@ -442,7 +442,8 @@ tr:hover td{background:#fafbff;cursor:pointer}
   position: absolute;
   top: 0;
   right: 0;
-  width: 8px; /* つかみやすい幅 */
+  width: 12px; /* 掴みやすいように少し太く */
+  transform: translateX(50%); /* 💡当たり判定を右の境界線にまたがる位置にずらす */
   cursor: col-resize;
   user-select: none;
   height: 100%;
@@ -451,7 +452,7 @@ tr:hover td{background:#fafbff;cursor:pointer}
   transition: background-color 0.15s;
 }
 .resizer:hover, .resizer.resizing {
-  background-color: #94a3b8; /* マウスオーバー時やドラッグ時に色がつく */
+  background-color: #94a3b8;
 }
   
 </style>
@@ -2020,17 +2021,15 @@ async function saveAllDirtyDeepRows() {
     notify('保存エラー: ' + e.message, 'err');
   }
 }
-  // 💡 深耕営業タブの列幅をドラッグでリサイズ可能にする機能
+// 💡 深耕営業タブの列幅をドラッグでリサイズ可能にする機能
 function initDeepTableResizers() {
   const table = document.getElementById('deep-table');
   if (!table) return;
   const cols = table.querySelectorAll('thead th');
   
   cols.forEach(col => {
-    // 既にリサイザが存在する場合はスキップ
     if (col.querySelector('.resizer')) return;
 
-    // リサイザ用要素の生成
     const resizer = document.createElement('div');
     resizer.classList.add('resizer');
     col.appendChild(resizer);
@@ -2039,7 +2038,7 @@ function initDeepTableResizers() {
     let startWidth = 0;
 
     const mouseDownHandler = function(e) {
-      e.stopPropagation(); // ソート機能のクリック反応を遮断
+      e.stopPropagation();
       startX = e.clientX;
       const styles = window.getComputedStyle(col);
       startWidth = parseInt(styles.width, 10);
@@ -2051,7 +2050,7 @@ function initDeepTableResizers() {
 
     const mouseMoveHandler = function(e) {
       const dx = e.clientX - startX;
-      col.style.width = `${Math.max(40, startWidth + dx)}px`; // 最小幅を40pxに制限
+      col.style.width = `${Math.max(40, startWidth + dx)}px`;
     };
 
     const mouseUpHandler = function() {
@@ -2061,10 +2060,12 @@ function initDeepTableResizers() {
     };
 
     resizer.addEventListener('mousedown', mouseDownHandler);
+    
+    // 💡【追加】リサイズ完了時（マウスを離した時）にソート機能が暴発するのを完全に遮断
+    resizer.addEventListener('click', function(e) { e.stopPropagation(); });
   });
 }
 
-// 読み込み直後にリサイザを初期化して有効にする
 setTimeout(initDeepTableResizers, 500);
 </script>
 </body>
