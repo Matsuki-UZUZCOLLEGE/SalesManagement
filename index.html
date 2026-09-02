@@ -454,6 +454,18 @@ tr:hover td{background:#fafbff;cursor:pointer}
 .resizer:hover, .resizer.resizing {
   background-color: #94a3b8;
 }
+/* 💡 ソート可能な見出しのスタイル */
+.sortable-header {
+  transition: all 0.15s ease;
+}
+/* マウスを乗せたら背景色を変え、アイコンを濃い青にする */
+.sortable-header:hover {
+  background-color: #e2e8f0 !important;
+}
+.sortable-header:hover .sort-icon {
+  opacity: 1 !important;
+  color: #1e3a8a !important;
+}
   
 </style>
 </head>
@@ -671,11 +683,11 @@ tr:hover td{background:#fafbff;cursor:pointer}
                 </div>
               </th>
               <!-- 💡【修正】企業名、担当者、ステータス、総売上金額の各見出しにクリックソート処理を追加 -->
-              <th style="width:240px; cursor:pointer; user-select:none;" onclick="setDeepSort('company')">企業名 <span id="sort-icon-company" style="font-size:10px; opacity:0.3;">↕</span></th>
-              <th style="width:100px; cursor:pointer; user-select:none;" onclick="setDeepSort('assignee')">担当者 <span id="sort-icon-assignee" style="font-size:10px; opacity:0.3;">↕</span></th>
+             <th class="sortable-header" style="width:240px; cursor:pointer; user-select:none;" onclick="setDeepSort('company')">企業名 <span id="sort-icon-company" class="sort-icon" style="font-size:14px; opacity:0.4; margin-left:4px;">⇅</span></th>
+              <th class="sortable-header" style="width:100px; cursor:pointer; user-select:none;" onclick="setDeepSort('assignee')">担当者 <span id="sort-icon-assignee" class="sort-icon" style="font-size:14px; opacity:0.4; margin-left:4px;">⇅</span></th>
               <th style="width:180px;">提供中サービス</th>
-              <th style="width:110px; cursor:pointer; user-select:none;" onclick="setDeepSort('status')">ステータス <span id="sort-icon-status" style="font-size:10px; opacity:0.3;">↕</span></th>
-              <th style="width:120px; text-align:right; cursor:pointer; user-select:none;" onclick="setDeepSort('revenue')">総売上金額 <span id="sort-icon-revenue" style="font-size:10px; opacity:0.3;">↕</span></th>
+              <th class="sortable-header" style="width:110px; cursor:pointer; user-select:none;" onclick="setDeepSort('status')">ステータス <span id="sort-icon-status" class="sort-icon" style="font-size:14px; opacity:0.4; margin-left:4px;">⇅</span></th>
+              <th class="sortable-header" style="width:120px; text-align:right; cursor:pointer; user-select:none;" onclick="setDeepSort('revenue')">総売上金額 <span id="sort-icon-revenue" class="sort-icon" style="font-size:14px; opacity:0.4; margin-left:4px;">⇅</span></th>
               <th style="width:200px;">戦略</th>
               <th style="width:280px;">ToDo</th>
               <th>状況</th>
@@ -1548,11 +1560,15 @@ function updateDeepSortIcons() {
     const el = $('sort-icon-' + key);
     if (el) {
       if (deepSortKey === key) {
+        // ソート適用時は青色の太い矢印にする
         el.textContent = deepSortDir === 'asc' ? '▲' : '▼';
         el.style.opacity = '1';
+        el.style.color = '#1d4ed8';
       } else {
-        el.textContent = '↕';
-        el.style.opacity = '0.3';
+        // 未適用時は「⇅」アイコン
+        el.textContent = '⇅';
+        el.style.opacity = '0.4';
+        el.style.color = 'inherit';
       }
     }
   });
